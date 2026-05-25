@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Corrida do Ciclo Celular</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="board-panel" aria-label="Tabuleiro do ciclo celular">
+        <div class="top-player-bar">
+          <div class="player-grid players" id="players" aria-label="Peões"></div>
+        </div>
+        <div class="board" id="board">
+          <div class="center-lab">
+            <p class="eyebrow">Ciclo celular</p>
+            <h1>Corrida da divisão</h1>
+            <div class="phase-ring" aria-hidden="true">
+              <span>G1</span>
+              <span>S</span>
+              <span>G2</span>
+              <span>M</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="controls" aria-label="Controles do jogo">
+        <button class="rules-button" id="rulesButton" type="button">Regras</button>
+
+        <div class="sr-only" aria-live="polite">
+          <span id="currentDot"></span>
+          <span id="currentName">Azul</span>
+          <span id="statusText">Clique em um peão para colocá-lo no Checkpoint/Inicio.</span>
+        </div>
+
+        <div class="dice-stage">
+          <button class="die" id="dice" type="button" aria-label="Rolar dado">
+            <span class="dice-face" id="diceFace" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <div class="card">
+          <p class="card-label">Recursos do jogador</p>
+          <p class="phase-line" id="phaseText">Fase atual: G1</p>
+          <div class="resource-grid">
+            <div class="resource-box">
+              <span class="resource-name">ATP</span>
+              <span class="resource-value" id="resourceAtp">0</span>
+            </div>
+            <div class="resource-box">
+              <span class="resource-name">Proteínas</span>
+              <span class="resource-value" id="resourceProteins">0</span>
+            </div>
+            <div class="resource-box">
+              <span class="resource-name">AA</span>
+              <span class="resource-value" id="resourceAa">0</span>
+            </div>
+          </div>
+          <p class="resource-note" id="resourceNote">Para avançar de G1 para S, junte no mínimo 2 ATPs e 2 proteínas.</p>
+        </div>
+
+        <div class="card">
+          <p class="card-label">Notificações</p>
+          <div class="notification-list">
+            <div class="notification-item" id="notificationText">Acompanhe aqui as ações importantes da rodada.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="card-label">Últimas rodadas</p>
+          <div class="round-history" id="roundHistory">
+            <div class="history-empty">As últimas 4 rodadas aparecerão aqui.</div>
+          </div>
+        </div>
+
+        <p class="result" id="resultText">Resultado atual: 1</p>
+        <p class="hint" id="hintText">Clique nos peões para adicionar ou remover jogadores do tabuleiro.</p>
+
+        <button class="enter-button is-hidden" id="enterButton" type="button">Colocar peão em jogo</button>
+
+        <div class="admin-strip">
+          <button class="ghost-button admin-login-button" id="adminLoginButton" type="button">Login admin</button>
+          <span class="admin-status" id="adminStatus">Modo admin desativado.</span>
+        </div>
+
+        <button class="secondary-button reset-button" id="resetButton" type="button">Reiniciar partida</button>
+      </aside>
+    </main>
+
+    <div class="modal" id="rulesModal" hidden>
+      <div class="modal-panel event-help-panel" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+        <h2 id="rulesTitle">Regras do jogo</h2>
+
+        <section class="rules-section">
+          <h3>Fase G1: crescimento</h3>
+          <p>Objetivo: juntar pelo menos 2 ATPs e 2 proteínas para avançar para a fase S.</p>
+          <p>Cada proteína é formada automaticamente ao juntar 20 aminoácidos.</p>
+          <p>Ao chegar no checkpoint, o jogador decide se paga 2 ATPs e 2 proteínas para avançar ou se continua coletando recursos.</p>
+        </section>
+
+        <section class="rules-section">
+          <h3>Casas de recurso</h3>
+          <p>Ao passar por uma casa AA, o jogador ganha 1 aminoácido.</p>
+          <p>Ao parar em AA, o dado é jogado e o valor tirado é a quantidade de aminoácidos recebida.</p>
+          <p>Ao parar em ATP, o jogador ganha 1 ATP.</p>
+        </section>
+
+        <section class="rules-section">
+          <h3>Fase S: sintese</h3>
+          <p>Ao avancar para S, o jogador recebe 1 carta DNA e o peao muda para marcar a nova fase.</p>
+          <p>A sintese dura duas voltas: no primeiro checkpoint paga 2 ATPs para abrir a fita molde.</p>
+          <p>No segundo checkpoint paga 1 ATP e 1 proteina para concluir a replicacao, recebe a segunda carta DNA e avanca para G2.</p>
+          <p>Se faltar ATP no checkpoint da fase S, pode trocar proteinas por ATP na razao 1 por 1. Se ainda faltar recurso, sofre apoptose e perde o jogo.</p>
+          <p>Na fase S, passar ou parar em AA consome 1 aminoacido.</p>
+        </section>
+
+        <section class="rules-section">
+          <h3>Fase G2: crescimento</h3>
+          <p>Ao entrar em G2, o jogador passa para o tabuleiro interno e precisa possuir 2 cartas DNA.</p>
+          <p>Para avancar para a Mitose, precisa de 4 ATPs e 2 proteinas mitoticas.</p>
+          <p>No checkpoint interno, 2 proteinas comuns formam 1 proteina mitotica.</p>
+          <p>Ao completar uma volta em G2, o jogador ganha 1 ATP.</p>
+          <p>AA, ATP e Evento funcionam como na G1: passar por AA ganha 1 aminoacido, parar em AA rola o dado azul, parar em ATP ganha 1 ATP e Evento sorteia carta da fase G2.</p>
+        </section>
+
+        <section class="rules-section">
+          <h3>Fase M: mitose</h3>
+          <p>A Mitose acontece no tabuleiro interno em Profase, Metafase, Anafase/Telofase e Citocinese.</p>
+          <p>Na Profase, ao completar uma volta paga 1 ATP e 1 proteina mitotica para avancar. Se faltar recurso ou DNA, volta para G2.</p>
+          <p>Na Metafase, ao chegar no checkpoint rola o dado: 1 ou 2 desalinha e reinicia a Metafase; 3 a 6 avanca.</p>
+          <p>Na Anafase/Telofase, paga 1 ATP e 1 proteina mitotica para concluir a Citocinese e vencer.</p>
+          <p>Depois da Profase, passar por AA nao coleta recurso; parar em AA ainda rola o dado azul.</p>
+        </section>
+
+        <section class="rules-section">
+          <h3>Checkpoint</h3>
+          <p>O jogador é obrigado a parar no checkpoint, mesmo que o dado tenha casas sobrando.</p>
+          <p>Se não conseguir nenhum ATP na volta, pode trocar 2 proteínas completas por 1 ATP ao chegar no checkpoint.</p>
+          <p>Se ainda não tiver recursos suficientes, continua em G1 até chegar novamente ao checkpoint.</p>
+        </section>
+
+        <section class="rules-section">
+          <h3>Eventos e dano</h3>
+          <p>Ao parar em Evento, o jogador sorteia uma carta da fase G1 com bônus, ônus ou efeito neutro.</p>
+          <p>Dano celular existe uma casa antes do checkpoint. Ao parar nela, perde 1 ATP e 1 proteína para reparar a célula.</p>
+          <p>Se não possuir recursos suficientes no dano celular, sofre apoptose e reinicia no checkpoint sem recursos.</p>
+        </section>
+
+        <div class="modal-actions">
+          <button class="ghost-button" id="rulesClose" type="button">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="adminLoginModal" hidden>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="adminLoginTitle">
+        <h2 id="adminLoginTitle">Login admin</h2>
+        <div class="admin-form">
+          <label>
+            Usuário
+            <input class="field" id="adminUser" type="text" autocomplete="username" />
+          </label>
+          <label>
+            Senha
+            <input class="field" id="adminPassword" type="password" autocomplete="current-password" />
+          </label>
+          <p class="admin-feedback" id="adminFeedback">Entre para liberar comandos de teste.</p>
+          <div class="modal-actions">
+            <button class="secondary-button" id="adminSubmit" type="button">Entrar</button>
+            <button class="ghost-button" id="adminCancel" type="button">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="adminCommandModal" hidden>
+      <div class="modal-panel admin-panel" role="dialog" aria-modal="true" aria-labelledby="adminCommandTitle">
+        <h2 id="adminCommandTitle">Painel admin</h2>
+        <section class="admin-control-section">
+          <h3>Peao</h3>
+          <div class="admin-color-grid" id="adminColorGrid"></div>
+        </section>
+        <section class="admin-control-section">
+          <h3>Movimento</h3>
+          <div class="admin-number-grid" id="adminMoveGrid"></div>
+        </section>
+        <section class="admin-control-section">
+          <h3>Recursos e fase</h3>
+          <div class="admin-action-grid">
+            <button class="secondary-button admin-action" id="adminAddProtein" type="button">Prot</button>
+            <button class="secondary-button admin-action" id="adminAddAa" type="button">AA</button>
+            <button class="secondary-button admin-action" id="adminAddAtp" type="button">ATP</button>
+            <button class="secondary-button admin-action" id="adminAdvancePhase" type="button">Avan&ccedil;ar</button>
+            <button class="secondary-button admin-action" id="adminRegressPhase" type="button">Retroceder</button>
+          </div>
+        </section>
+        <input class="field command-field" id="adminCommandInput" type="text" placeholder="/azul5, /addaa20, /addatp2, /removeaa" autocomplete="off" />
+        <p class="admin-feedback" id="adminCommandFeedback">Os comandos de recurso afetam o peão da vez.</p>
+        <div class="modal-actions">
+          <button class="secondary-button" id="adminRun" type="button">Executar</button>
+          <button class="ghost-button" id="adminCommandClose" type="button">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="eventModal" hidden>
+      <div class="modal-panel event-card-panel" role="dialog" aria-modal="true" aria-labelledby="eventTitle">
+        <h2 id="eventTitle">Escolha uma carta</h2>
+        <p class="event-instruction" id="eventInstruction">Clique em uma carta para revelar o evento.</p>
+        <div class="event-card-grid" id="eventCardGrid"></div>
+        <div class="event-reveal" id="eventReveal" hidden></div>
+        <div class="modal-actions">
+          <button class="ghost-button" id="eventContinue" type="button" disabled>Continuar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="checkpointModal" hidden>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="checkpointTitle">
+        <h2 id="checkpointTitle">Checkpoint</h2>
+        <div class="checkpoint-summary" id="checkpointSummary"></div>
+        <p class="admin-feedback" id="checkpointMessage"></p>
+        <div class="modal-actions">
+          <button class="secondary-button" id="checkpointAdvance" type="button">Passar para a fase S</button>
+          <button class="secondary-button" id="checkpointTrade" type="button">Trocar 2 proteínas por 1 ATP</button>
+          <button class="secondary-button" id="checkpointBuyDna" type="button">Comprar 1 DNA por 2 ATPs</button>
+          <button class="ghost-button" id="checkpointContinue" type="button">Continuar coletando</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
