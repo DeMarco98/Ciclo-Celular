@@ -11,12 +11,15 @@ const notificationText = document.querySelector("#notificationText");
 const resultText = document.querySelector("#resultText");
 const roundHistory = document.querySelector("#roundHistory");
 const rulesButton = document.querySelector("#rulesButton");
+const fullscreenButton = document.querySelector("#fullscreenButton");
 const rulesModal = document.querySelector("#rulesModal");
 const rulesClose = document.querySelector("#rulesClose");
+const playerSetupModal = document.querySelector("#playerSetupModal");
+const setupPlayerGrid = document.querySelector("#setupPlayerGrid");
+const setupFeedback = document.querySelector("#setupFeedback");
+const startGameButton = document.querySelector("#startGameButton");
 const phaseText = document.querySelector("#phaseText");
-const resourceAtp = document.querySelector("#resourceAtp");
-const resourceProteins = document.querySelector("#resourceProteins");
-const resourceAa = document.querySelector("#resourceAa");
+const resourcePlayerList = document.querySelector("#resourcePlayerList");
 const resourceNote = document.querySelector("#resourceNote");
 const hintText = document.querySelector("#hintText");
 const adminLoginButton = document.querySelector("#adminLoginButton");
@@ -50,6 +53,7 @@ const checkpointSummary = document.querySelector("#checkpointSummary");
 const checkpointMessage = document.querySelector("#checkpointMessage");
 const checkpointAdvance = document.querySelector("#checkpointAdvance");
 const checkpointTrade = document.querySelector("#checkpointTrade");
+const checkpointMitoticTrade = document.querySelector("#checkpointMitoticTrade");
 const checkpointBuyDna = document.querySelector("#checkpointBuyDna");
 const checkpointContinue = document.querySelector("#checkpointContinue");
 
@@ -65,7 +69,11 @@ let adminLoggedIn = false;
 let adminSelectedPlayerIndex = 0;
 let pendingAaPlayerIndex = null;
 let eventResolver = null;
+const eventResolverStack = [];
+let eventAutoCloseTimer = null;
+let pendingEventAction = null;
 let checkpointResolver = null;
+let setupSelectedPlayers = new Set([0, 1, 2, 3, 4, 5]);
 const roundLog = [];
 const dicePipMap = {
   1: ["center"],
@@ -182,6 +190,8 @@ const players = [
   createPlayer("Vermelho", "#eb5757"),
   createPlayer("Verde", "#27ae60"),
   createPlayer("Amarelo", "#f2c94c"),
+  createPlayer("Roxo", "#9b51e0"),
+  createPlayer("Laranja", "#f2994a"),
 ];
 
 function createPlayer(name, color) {
@@ -291,6 +301,22 @@ function buildSpecialCells() {
     }
   });
 
+  const actionHouses = [
+    [2, outerMax, "Avance 2", "Avance 2 casas", "action-cell advance-cell", "advance2", { type: "move", steps: 2 }],
+    [outerMax, 4, "Avance 3", "Avance 3 casas", "action-cell advance-cell strong-action", "advance3", { type: "move", steps: 3 }],
+    [10, outerMax, "Volte 2", "Volte 2 casas", "action-cell retreat-cell", "retreat2", { type: "move", steps: -2 }],
+    [0, 4, "Volte 3", "Volte 3 casas", "action-cell retreat-cell strong-action", "retreat3", { type: "move", steps: -3 }],
+    [outerMax - 1, 0, "Jogue novamente", "Jogue novamente", "action-cell replay-cell", "replay", { type: "again" }],
+    [outerMax, 10, "Perca 1 rodada", "Perca 1 rodada", "action-cell skip-cell", "skip", { type: "skip" }],
+  ];
+
+  actionHouses.forEach(([x, y, text, label, className, icon, action]) => {
+    const index = indexByCoord.get(`${x},${y}`);
+    if (index !== undefined && !cells.has(index)) {
+      cells.set(index, { text, className, icon, action, label, arrowDirection: getActionArrowDirection(index, action) });
+    }
+  });
+
   const innerCheckpoints = [
     [innerMin, innerMin],
   ];
@@ -356,6 +382,22 @@ function buildSpecialCells() {
     }
   });
 
+  const innerActionHouses = [
+    [7, innerMin, "Avance 2", "Avance 2 casas", "action-cell advance-cell", "advance2", { type: "move", steps: 2 }],
+    [innerMax, 7, "Avance 3", "Avance 3 casas", "action-cell advance-cell strong-action", "advance3", { type: "move", steps: 3 }],
+    [10, innerMax, "Volte 2", "Volte 2 casas", "action-cell retreat-cell", "retreat2", { type: "move", steps: -2 }],
+    [innerMin, 7, "Volte 3", "Volte 3 casas", "action-cell retreat-cell strong-action", "retreat3", { type: "move", steps: -3 }],
+    [3, innerMax, "Jogue novamente", "Jogue novamente", "action-cell replay-cell", "replay", { type: "again" }],
+    [innerMax, 3, "Perca 1 rodada", "Perca 1 rodada", "action-cell skip-cell", "skip", { type: "skip" }],
+  ];
+
+  innerActionHouses.forEach(([x, y, text, label, className, icon, action]) => {
+    const index = indexByCoord.get(`${x},${y}`);
+    if (index !== undefined && !cells.has(index)) {
+      cells.set(index, { text, className, icon, action, label, arrowDirection: getActionArrowDirection(index, action) });
+    }
+  });
+
   return cells;
 }
 
@@ -365,6 +407,28 @@ function cellCenter(coord) {
     left: `${coord.x * size + size / 2}%`,
     top: `${coord.y * size + size / 2}%`,
   };
+}
+
+function getActionArrowDirection(index, action) {
+  if (action?.type !== "move") return "right";
+  const sectionStart = index < outerPathLength ? 0 : outerPathLength;
+  const sectionLength = index < outerPathLength ? outerPathLength : innerPathLength;
+  const sectionOffset = index - sectionStart;
+  const directionStep = action.steps > 0 ? 1 : -1;
+  const targetOffset = (sectionOffset + directionStep + sectionLength) % sectionLength;
+  const current = path[index];
+  const target = path[sectionStart + targetOffset];
+  const dx = target.x - current.x;
+  const dy = target.y - current.y;
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "right" : "left";
+  return dy > 0 ? "down" : "up";
+}
+
+function getArrowRotation(direction) {
+  if (direction === "down") return 90;
+  if (direction === "left") return 180;
+  if (direction === "up") return -90;
+  return 0;
 }
 
 function drawBoard() {
@@ -381,7 +445,7 @@ function drawBoard() {
     cell.dataset.index = String(index);
 
     if (special?.icon) {
-      cell.innerHTML = getCellIcon(special.icon, special.text);
+      cell.innerHTML = getCellIcon(special.icon, special.label || special.text, special);
     } else if (special) {
       cell.innerHTML = `${special.text}${special.note ? `<small>${special.note}</small>` : ""}`;
     }
@@ -398,7 +462,33 @@ function drawBoard() {
   });
 }
 
-function getCellIcon(icon, label) {
+function getCellIcon(icon, label, special = {}) {
+  if (icon === "advance2" || icon === "advance3" || icon === "retreat2" || icon === "retreat3" || icon === "replay" || icon === "skip") {
+    const config = {
+      advance2: { main: "+2", text: "AVANCE", color: "#27ae60" },
+      advance3: { main: "+3", text: "AVANCE", color: "#1f9d8a" },
+      retreat2: { main: "-2", text: "VOLTE", color: "#eb5757" },
+      retreat3: { main: "-3", text: "VOLTE", color: "#c0398f" },
+      replay: { main: "↻", text: "JOGUE", color: "#2f80ed" },
+      skip: { main: "×1", text: "PERCA", color: "#8e5bb8" },
+    }[icon];
+    const arrowRotation = getArrowRotation(special.arrowDirection || "right");
+    const isMoveCell = special.action?.type === "move";
+    return `
+      <svg class="cell-icon cell-art action-art" viewBox="0 0 96 96" role="img" aria-label="${label}">
+        <circle cx="48" cy="48" r="31" fill="#ffffff" stroke="${config.color}" stroke-width="6"></circle>
+        ${isMoveCell
+          ? `<g transform="rotate(${arrowRotation} 48 30)">
+              <path d="M23 30h40" fill="none" stroke="#26313d" stroke-width="9" stroke-linecap="round"></path>
+              <path d="M52 15l17 15-17 15" fill="none" stroke="#26313d" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path>
+            </g>`
+          : `<path d="${icon === "replay" ? "M65 29a23 23 0 1 0 6 24M65 29v18H47" : "M30 28l36 36M66 28L30 64"}" fill="none" stroke="#26313d" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>`}
+        <text x="48" y="66" text-anchor="middle" font-size="${isMoveCell ? 35 : 27}" font-weight="900" fill="${config.color}" stroke="#ffffff" stroke-width="3" paint-order="stroke">${config.main}</text>
+        <text x="48" y="88" text-anchor="middle" font-size="10" font-weight="900" fill="#26313d">${config.text}</text>
+      </svg>
+    `;
+  }
+
   if (icon === "finish") {
     return `
       <svg class="cell-icon cell-art" viewBox="0 0 96 96" role="img" aria-label="${label}">
@@ -529,6 +619,7 @@ function drawDecorativeBridge() {
 }
 
 function drawPlayers() {
+  if (!playersBox) return;
   playersBox.innerHTML = "";
   players.forEach((player, index) => {
     const card = document.createElement("button");
@@ -537,14 +628,13 @@ function drawPlayers() {
       player.position < 0 ? "is-out" : ""
     } ${player.lost ? "is-lost" : ""}`;
     card.style.setProperty("--player-color", player.color);
-    card.addEventListener("click", () => togglePlayer(index));
     const place = player.finished
       ? "Concluiu a divisão"
       : player.lost
         ? "Apoptose"
       : player.position < 0
-        ? "Clique para adicionar"
-        : "Clique para remover";
+        ? "Fora da partida"
+        : "Em jogo";
     card.innerHTML = `
       <strong><i class="player-dot" style="background:${player.color}"></i>${player.name}</strong>
       <span>${place}</span>
@@ -575,12 +665,14 @@ function updatePawns() {
 
 function getCrowdOffset(index) {
   const offsets = [
-    { x: -6, y: -5 },
-    { x: 6, y: -5 },
-    { x: -6, y: 7 },
-    { x: 6, y: 7 },
+    { x: -9, y: -7 },
+    { x: 0, y: -7 },
+    { x: 9, y: -7 },
+    { x: -9, y: 7 },
+    { x: 0, y: 7 },
+    { x: 9, y: 7 },
   ];
-  return offsets[index];
+  return offsets[index] || { x: 0, y: 0 };
 }
 
 function updateTurn(message) {
@@ -660,20 +752,44 @@ function renderRoundHistory() {
 }
 
 function updateResourcePanel() {
-  const player = players[currentPlayer];
-  if (!player || player.position < 0 || player.lost) {
-    phaseText.textContent = "Fase atual: -";
-    resourceAtp.textContent = "0";
-    resourceProteins.textContent = "0";
-    resourceAa.textContent = "0";
-    resourceNote.textContent = "Selecione um peão ativo para ver os recursos.";
+  const activePlayers = players.filter((player) => player.position >= 0 && !player.lost && !player.finished);
+  const current = players[currentPlayer];
+  if (!activePlayers.length) {
+    phaseText.textContent = "Nenhum jogador ativo";
+    resourcePlayerList.innerHTML = `
+      <div class="resource-player-empty">Escolha os peões e inicie a partida.</div>
+    `;
+    resourceNote.textContent = "Inicie a partida para acompanhar os recursos de cada peão.";
     return;
   }
 
-  phaseText.textContent = `Fase atual: ${player.phase}`;
-  resourceAtp.textContent = String(player.atp);
-  resourceProteins.textContent = String(player.proteins);
-  resourceAa.textContent = String(player.aminoAcids);
+  phaseText.textContent = current && activePlayers.includes(current)
+    ? `Vez: ${current.name} - ${current.phase}${current.phase === "M" ? `/${getMitosisStageLabel(current)}` : ""}`
+    : "Jogadores ativos";
+  resourcePlayerList.innerHTML = activePlayers
+    .map((player, index) => {
+      const isCurrent = player === current;
+      const phaseLabel = `${player.phase}${player.phase === "M" ? `/${getMitosisStageLabel(player)}` : ""}`;
+      return `
+        <div class="resource-player-row ${isCurrent ? "is-current" : ""}" style="--player-color:${player.color}">
+          <div class="resource-player-head">
+            <span class="resource-player-dot"></span>
+            <strong>${player.name}</strong>
+            <small>${phaseLabel}</small>
+          </div>
+          <div class="resource-player-stats">
+            <span>ATP <b>${player.atp}</b></span>
+            <span>Prot <b>${player.proteins}</b></span>
+            <span>AA <b>${player.aminoAcids}</b></span>
+            <span>PM <b>${player.mitoticProteins}</b></span>
+            <span>DNA <b>${player.dnaCards}</b></span>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  const player = current && activePlayers.includes(current) ? current : activePlayers[0];
   if (player.phase === "G1") {
     resourceNote.textContent = "Para avancar de G1 para S, pague 2 ATPs e 2 proteinas no checkpoint.";
   } else if (player.phase === "S") {
@@ -695,6 +811,10 @@ function setMessage(message, hint = "") {
   if (resultText) {
     resultText.textContent = message;
   }
+  if (!hint && hintText) {
+    hintText.textContent = "Use Reiniciar partida para escolher novamente os peoes.";
+    return;
+  }
   if (hintText) {
     hintText.textContent = hint || "Clique nos peões para adicionar ou remover jogadores do tabuleiro.";
   }
@@ -714,6 +834,83 @@ function showWinnerMessage(player) {
     toast.classList.add("is-leaving");
     window.setTimeout(() => toast.remove(), 450);
   }, 4200);
+}
+
+function resetPlayersToInitialState() {
+  players.forEach((player) => {
+    player.position = -1;
+    player.phase = "G1";
+    player.atp = 0;
+    player.aminoAcids = 0;
+    player.proteins = 0;
+    player.mitoticProteins = 0;
+    player.dnaCards = 0;
+    player.sCheckpointVisits = 0;
+    player.mitosisStage = "prophase";
+    player.skipTurns = 0;
+    player.extraTurn = false;
+    player.ignoreNextDamage = 0;
+    player.ignoreNextAtpCost = 0;
+    player.ignoreNextNegative = 0;
+    player.dnaProtection = 0;
+    player.g2CheckpointSnapshot = null;
+    player.collectedAtpThisLap = false;
+    player.finished = false;
+    player.lost = false;
+  });
+  currentPlayer = 0;
+  pendingAaPlayerIndex = null;
+  eventResolver = null;
+  eventResolverStack.length = 0;
+  clearEventAutoCloseTimer();
+  pendingEventAction = null;
+  eventModal.hidden = true;
+  renderDice(1);
+  dice.classList.remove("aa-roll");
+  isRolling = false;
+  roundLog.length = 0;
+  renderRoundHistory();
+}
+
+function renderSetupModal() {
+  setupPlayerGrid.innerHTML = players
+    .map(
+      (player, index) => `
+        <button class="setup-player-button ${setupSelectedPlayers.has(index) ? "is-selected" : ""}" type="button" data-setup-player="${index}" style="--player-color:${player.color}">
+          <span class="setup-player-dot"></span>
+          <strong>${player.name}</strong>
+        </button>
+      `,
+    )
+    .join("");
+  setupFeedback.textContent = setupSelectedPlayers.size > 0
+    ? `${setupSelectedPlayers.size} peao${setupSelectedPlayers.size > 1 ? "es" : ""} selecionado${setupSelectedPlayers.size > 1 ? "s" : ""}.`
+    : "Selecione pelo menos 1 peao para iniciar.";
+  startGameButton.disabled = setupSelectedPlayers.size === 0;
+}
+
+function openPlayerSetupModal() {
+  renderSetupModal();
+  playerSetupModal.hidden = false;
+}
+
+function closePlayerSetupModal() {
+  playerSetupModal.hidden = true;
+}
+
+function startSelectedPlayers() {
+  if (setupSelectedPlayers.size === 0) {
+    setupFeedback.textContent = "Selecione pelo menos 1 peao para iniciar.";
+    return;
+  }
+
+  resetPlayersToInitialState();
+  setupSelectedPlayers.forEach((index) => {
+    players[index].position = checkpointIndex;
+  });
+  currentPlayer = [...setupSelectedPlayers][0];
+  closePlayerSetupModal();
+  updateTurn("Partida iniciada. Role o dado para começar.");
 }
 
 function togglePlayer(index) {
@@ -938,6 +1135,8 @@ async function resolveLanding(player, value) {
     message = await resolveEvent(player);
   } else if (special?.className === "damage") {
     message = resolveDamage(player);
+  } else if (special?.action) {
+    message = await resolveActionCell(player, special);
   }
 
   isRolling = false;
@@ -1030,13 +1229,39 @@ function payAtp(player, amount) {
   return true;
 }
 
-function movePlayerByCard(player, steps) {
+async function movePlayerByCard(player, steps, chainDepth = 0) {
   const direction = steps >= 0 ? 1 : -1;
   const total = Math.abs(steps);
+  const messages = [];
   for (let index = 0; index < total; index += 1) {
     player.position = direction > 0 ? getNextPosition(player, player.position) : getPreviousPosition(player, player.position);
+    updatePawns();
+    drawPlayers();
+    updateResourcePanel();
+    await wait(180);
+
+    const landedOnCheckpoint = player.position === getCheckpointIndex(player);
+    const isFinalStep = index === total - 1;
+    if (!isFinalStep && !landedOnCheckpoint) {
+      const passMessage = await resolveCardPassEffect(player);
+      if (passMessage) messages.push(passMessage);
+    }
+
+    if (landedOnCheckpoint) {
+      messages.push(await resolveCheckpointForCardMove(player));
+      break;
+    }
   }
+
+  if (player.position !== getCheckpointIndex(player)) {
+    const landingMessage = await resolveCardLanding(player, steps, chainDepth);
+    if (landingMessage) messages.push(landingMessage);
+  }
+
+  updateResourcePanel();
+  drawPlayers();
   updatePawns();
+  return messages.filter(Boolean).join(" ");
 }
 
 function getPreviousPosition(player, position) {
@@ -1047,6 +1272,145 @@ function getPreviousPosition(player, position) {
   }
   if (position < 0 || position >= outerPathLength) return checkpointIndex;
   return (position - 1 + outerPathLength) % outerPathLength;
+}
+
+async function movePlayerToCheckpointByCard(player) {
+  const messages = [];
+  let guard = 0;
+  while (player.position !== getCheckpointIndex(player) && guard < path.length) {
+    player.position = getNextPosition(player, player.position);
+    updatePawns();
+    drawPlayers();
+    updateResourcePanel();
+    await wait(180);
+    guard += 1;
+
+    if (player.position !== getCheckpointIndex(player)) {
+      const passMessage = await resolveCardPassEffect(player);
+      if (passMessage) messages.push(passMessage);
+    }
+  }
+
+  if (player.position === getCheckpointIndex(player)) {
+    messages.push(await resolveCheckpointForCardMove(player));
+  }
+
+  return messages.filter(Boolean).join(" ");
+}
+
+async function resolveCardPassEffect(player) {
+  const cell = specialCells.get(player.position);
+  if (cell?.className !== "aa") return "";
+
+  if (player.phase === "S") {
+    const aaLoss = loseAminoAcids(player, 1);
+    return describeAminoAcidLoss(
+      player,
+      `${player.name} passou por AA na fase S e perdeu 1 aminoacido.`,
+      `${player.name} passou por AA na fase S, mas nao tinha aminoacidos para perder.`,
+      aaLoss,
+    );
+  }
+
+  if (player.phase === "M" && player.mitosisStage !== "prophase") {
+    return `${player.name} passou por AA na ${getMitosisStageLabel(player)}, mas nao coleta mais recursos ao passar.`;
+  }
+
+  addAminoAcids(player, 1);
+  return `${player.name} passou por AA e ganhou 1 aminoacido.`;
+}
+
+async function resolveCardLanding(player, value, chainDepth = 0) {
+  const special = specialCells.get(player.position);
+  if (!special) return `${player.name} andou ${Math.abs(value)} casa${Math.abs(value) > 1 ? "s" : ""}.`;
+
+  if (special.className === "aa") {
+    if (player.phase === "S") {
+      const aaLoss = loseAminoAcids(player, 1);
+      return describeAminoAcidLoss(
+        player,
+        `${player.name} parou em AA na fase S e perdeu 1 aminoacido.`,
+        `${player.name} parou em AA na fase S, mas nao tinha aminoacidos para perder.`,
+        aaLoss,
+      );
+    }
+
+    const aaRoll = await rollResourceDie();
+    addAminoAcids(player, aaRoll);
+    return `${player.name} parou em AA, rolou ${aaRoll} no dado azul e ganhou ${aaRoll} AA.`;
+  }
+
+  if (special.className === "atp") {
+    player.atp += 1;
+    player.collectedAtpThisLap = true;
+    return `${player.name} parou em ATP e ganhou 1 ATP.`;
+  }
+
+  if (special.className === "event") {
+    return `Ao parar em Evento pela carta, ${await resolveEvent(player)}`;
+  }
+
+  if (special.className === "damage") {
+    return resolveDamage(player);
+  }
+
+  if (special.action) {
+    return resolveActionCell(player, special, chainDepth);
+  }
+
+  return "";
+}
+
+async function resolveActionCell(player, special, chainDepth = 0) {
+  const action = special.action;
+  if (!action) return "";
+
+  if (action.type === "move") {
+    if (chainDepth >= 4) {
+      return `${player.name} caiu em ${special.text}, mas a sequencia de movimentos foi encerrada.`;
+    }
+    const steps = action.steps;
+    const movementMessage = await movePlayerByCard(player, steps, chainDepth + 1);
+    return `${player.name} caiu em ${special.text} e ${steps > 0 ? "avancou" : "voltou"} ${Math.abs(steps)} casas. ${movementMessage}`;
+  }
+
+  if (action.type === "again") {
+    player.extraTurn = true;
+    return `${player.name} caiu em Jogue Novamente e tera mais uma jogada.`;
+  }
+
+  if (action.type === "skip") {
+    player.skipTurns = Math.max(player.skipTurns, 1);
+    return `${player.name} caiu em Perca 1 rodada e perdera a proxima jogada.`;
+  }
+
+  return "";
+}
+
+async function resolveCheckpointForCardMove(player) {
+  let message = `${player.name} chegou ao checkpoint pelo efeito da carta.`;
+  if (player.phase === "G1" || player.phase === "S") {
+    player.proteins += 1;
+    message += ` Por completar 1 volta na fase ${player.phase}, ganhou 1 proteina.`;
+  } else if (player.phase === "G2" || player.phase === "M") {
+    player.atp += 1;
+    player.collectedAtpThisLap = true;
+    message += ` Por completar 1 volta na fase ${player.phase}, ganhou 1 ATP.`;
+  }
+
+  if (player.phase === "G1") {
+    message = await openCheckpointModalV2(player, message);
+  } else if (player.phase === "S") {
+    message = await openSCheckpointModal(player, message);
+  } else if (player.phase === "G2") {
+    message = await openG2CheckpointModalV2(player, message);
+  } else if (player.phase === "M") {
+    message = await openMCheckpointModal(player, message);
+  }
+
+  player.collectedAtpThisLap = false;
+  saveCheckpointSnapshot(player);
+  return message;
 }
 
 function moveToNextSpecial(player, className) {
@@ -1060,6 +1424,33 @@ function moveToNextSpecial(player, className) {
     }
   }
   return false;
+}
+
+async function moveToNextSpecialByCard(player, className) {
+  const messages = [];
+  for (let step = 0; step < path.length; step += 1) {
+    player.position = getNextPosition(player, player.position);
+    updatePawns();
+    drawPlayers();
+    updateResourcePanel();
+    await wait(180);
+
+    if (specialCells.get(player.position)?.className === className) {
+      const landingMessage = await resolveCardLanding(player, step + 1);
+      if (landingMessage) messages.push(landingMessage);
+      return { moved: true, message: messages.filter(Boolean).join(" ") };
+    }
+
+    const passMessage = await resolveCardPassEffect(player);
+    if (passMessage) messages.push(passMessage);
+
+    if (player.position === getCheckpointIndex(player)) {
+      messages.push(await resolveCheckpointForCardMove(player));
+      return { moved: true, message: messages.filter(Boolean).join(" ") };
+    }
+  }
+
+  return { moved: false, message: "" };
 }
 
 function restoreG2CheckpointSnapshot(player) {
@@ -1242,11 +1633,19 @@ function openMCheckpointModal(player, introMessage) {
   });
 }
 
+function clearEventAutoCloseTimer() {
+  if (!eventAutoCloseTimer) return;
+  window.clearTimeout(eventAutoCloseTimer);
+  eventAutoCloseTimer = null;
+}
+
 function renderCheckpointModal() {
   if (!checkpointResolver) return;
   const { player, type, introMessage } = checkpointResolver;
-  checkpointTrade.hidden = player.proteins < 2;
-  checkpointTrade.disabled = player.proteins < 2;
+  checkpointTrade.hidden = type === "M" || player.proteins < 2;
+  checkpointTrade.disabled = checkpointTrade.hidden;
+  checkpointMitoticTrade.hidden = !(type === "G2" || type === "M") || player.proteins < 2;
+  checkpointMitoticTrade.disabled = checkpointMitoticTrade.hidden;
   const canBuyDna = (type === "G2" || type === "M") && player.dnaCards < 2 && player.atp >= 2;
   checkpointBuyDna.hidden = !canBuyDna;
   checkpointBuyDna.disabled = !canBuyDna;
@@ -1296,14 +1695,12 @@ function renderCheckpointModal() {
   }
 
   if (type === "G2") {
-    const convertedProteins = convertMitoticProteins(player);
-    if (convertedProteins > 0) {
-      checkpointResolver.conversionMessage = ` Foram formadas ${convertedProteins} proteina${convertedProteins > 1 ? "s" : ""} mitotica${convertedProteins > 1 ? "s" : ""} usando proteinas comuns.`;
-    }
     const hasEnoughResources = player.dnaCards >= 2 && player.atp >= 4 && player.mitoticProteins >= 2;
     checkpointResolver.hasEnoughResources = hasEnoughResources;
     checkpointTrade.hidden = player.proteins < 2;
     checkpointTrade.disabled = player.proteins < 2;
+    checkpointMitoticTrade.hidden = player.proteins < 2;
+    checkpointMitoticTrade.disabled = player.proteins < 2;
     checkpointBuyDna.hidden = !(player.dnaCards < 2 && player.atp >= 2);
     checkpointBuyDna.disabled = checkpointBuyDna.hidden;
     checkpointSummary.innerHTML = `
@@ -1314,7 +1711,7 @@ function renderCheckpointModal() {
     `;
     checkpointMessage.textContent = hasEnoughResources
       ? `${introMessage}${checkpointResolver.conversionMessage || ""} Voce tem recursos suficientes. Deseja avancar para a Mitose ou continuar coletando?`
-      : `${introMessage}${checkpointResolver.conversionMessage || ""} Recursos insuficientes: precisa de 4 ATPs, 2 proteinas mitoticas e 2 cartas DNA. Se quiser, pode trocar 2 proteinas por 1 ATP.`;
+      : `${introMessage}${checkpointResolver.conversionMessage || ""} Recursos insuficientes: precisa de 4 ATPs, 2 proteinas mitoticas e 2 cartas DNA. Se quiser, pode trocar proteinas por ATP ou por proteina mitotica.`;
     checkpointAdvance.disabled = !hasEnoughResources;
     checkpointAdvance.hidden = !hasEnoughResources;
     checkpointAdvance.textContent = "Passar para a Mitose";
@@ -1323,6 +1720,10 @@ function renderCheckpointModal() {
   }
 
   if (type === "M") {
+    checkpointTrade.hidden = true;
+    checkpointTrade.disabled = true;
+    checkpointMitoticTrade.hidden = player.proteins < 2;
+    checkpointMitoticTrade.disabled = player.proteins < 2;
     const stage = player.mitosisStage;
     const needsPayment = stage === "prophase" || stage === "anaphase";
     const hasEnoughResources = player.dnaCards >= 2 && (!needsPayment || (player.atp >= 1 && player.mitoticProteins >= 1));
@@ -1335,16 +1736,16 @@ function renderCheckpointModal() {
       <div class="checkpoint-resource"><strong>DNA</strong><span>${player.dnaCards}/2</span></div>
     `;
     if (stage === "prophase") {
-      checkpointMessage.textContent = `${introMessage} Profase: resolva obrigatoriamente. Pague 1 ATP e 1 proteina mitotica para avancar; se faltar recurso ou DNA, retorna para G2.`;
+      checkpointMessage.textContent = `${introMessage}${checkpointResolver.conversionMessage || ""} Profase: resolva obrigatoriamente. Pague 1 ATP e 1 proteina mitotica para avancar; se faltar recurso ou DNA, retorna para G2.`;
       checkpointAdvance.textContent = "Concluir Profase";
     } else if (stage === "metaphase") {
-      checkpointMessage.textContent = `${introMessage} Metafase: resolva obrigatoriamente. Role o dado para verificar o alinhamento cromossomico. 1-2 volta ao inicio da Metafase; 3-6 avanca.`;
+      checkpointMessage.textContent = `${introMessage}${checkpointResolver.conversionMessage || ""} Metafase: resolva obrigatoriamente. Role o dado para verificar o alinhamento cromossomico. 1-2 volta ao inicio da Metafase; 3-6 avanca.`;
       checkpointAdvance.textContent = "Rolar alinhamento";
     } else if (stage === "anaphase") {
-      checkpointMessage.textContent = `${introMessage} Anafase/Telofase: resolva obrigatoriamente. Pague 1 ATP e 1 proteina mitotica para concluir a Mitose; se faltar recurso ou DNA, retorna para G2.`;
+      checkpointMessage.textContent = `${introMessage}${checkpointResolver.conversionMessage || ""} Anafase/Telofase: resolva obrigatoriamente. Pague 1 ATP e 1 proteina mitotica para concluir a Mitose; se faltar recurso ou DNA, retorna para G2.`;
       checkpointAdvance.textContent = "Concluir Anafase";
     } else {
-      checkpointMessage.textContent = `${introMessage} Citocinese concluida.`;
+      checkpointMessage.textContent = `${introMessage}${checkpointResolver.conversionMessage || ""} Citocinese concluida.`;
       checkpointAdvance.textContent = "Vencer jogo";
     }
     checkpointAdvance.hidden = false;
@@ -1652,6 +2053,35 @@ function getEventCardBackImage(phase) {
   return eventCardBackImages[phase] || eventCardBackImages.G1;
 }
 
+function shuffleCards(cards) {
+  const shuffled = [...cards];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function pickCardsByKind(cards, kind, amount) {
+  return shuffleCards(cards.filter((card) => card.kind === kind)).slice(0, amount);
+}
+
+function getBalancedEventChoices(cards) {
+  const choices = [
+    ...pickCardsByKind(cards, "Bonus", 2),
+    ...pickCardsByKind(cards, "Neutra", 1),
+    ...pickCardsByKind(cards, "Onus", 2),
+  ];
+
+  if (choices.length < 5) {
+    const selectedNames = new Set(choices.map((card) => card.fileName));
+    const fallback = shuffleCards(cards.filter((card) => !selectedNames.has(card.fileName)));
+    choices.push(...fallback.slice(0, 5 - choices.length));
+  }
+
+  return shuffleCards(choices);
+}
+
 function parsePackEventCard(fileName) {
   const baseName = fileName.replace(/\.png$/i, "");
   const [phase, kind, ...titleParts] = baseName.split(" - ");
@@ -1686,8 +2116,8 @@ async function applyPackEventCard(card, player) {
     return `${player.name} revelou ${card.title} e ganhou 1 ATP.`;
   }
   if (title.includes("nutrientes abundantes")) {
-    movePlayerByCard(player, 2);
-    return `${player.name} revelou ${card.title} e avancou 2 casas.`;
+    const movementMessage = await movePlayerByCard(player, 2);
+    return `${player.name} revelou ${card.title} e avancou 2 casas. ${movementMessage}`;
   }
   if (title.includes("ribossomos")) {
     addAminoAcids(player, 10);
@@ -1702,33 +2132,30 @@ async function applyPackEventCard(card, player) {
     return `${player.name} revelou ${card.title} e ganhou 1 proteina mitotica.`;
   }
   if (title.includes("checkpoint aprovado") || title.includes("enzimas ativas") || title.includes("cromossomos alinhados")) {
-    movePlayerByCard(player, 3);
-    return `${player.name} revelou ${card.title} e avancou 3 casas.`;
+    const movementMessage = await movePlayerByCard(player, 3);
+    return `${player.name} revelou ${card.title} e avancou 3 casas. ${movementMessage}`;
   }
   if (title.includes("ciclinas ativadas") || title.includes("checkpoint mitotico aprovado")) {
     player.ignoreNextNegative += 1;
     return `${player.name} revelou ${card.title} e ignorara o proximo efeito negativo.`;
   }
   if (title.includes("mitose acelerada")) {
-    movePlayerByCard(player, 4);
-    return `${player.name} revelou ${card.title} e avancou 4 casas.`;
+    const movementMessage = await movePlayerByCard(player, 4);
+    return `${player.name} revelou ${card.title} e avancou 4 casas. ${movementMessage}`;
   }
   if (title.includes("separacao cromossomica")) {
-    player.position = getCheckpointIndex(player);
-    updatePawns();
-    return `${player.name} revelou ${card.title} e foi direto para o checkpoint.`;
+    const movementMessage = await movePlayerToCheckpointByCard(player);
+    return `${player.name} revelou ${card.title} e foi ao checkpoint. ${movementMessage}`;
   }
   if (title.includes("fuso mitotico estavel")) {
     player.atp += 1;
     return `${player.name} revelou ${card.title} e ganhou 1 recurso livre convertido em ATP.`;
   }
   if (title.includes("dna polimeresa")) {
-    const moved = moveToNextSpecial(player, "atp");
-    if (moved) {
-      player.atp += 1;
-      player.collectedAtpThisLap = true;
-    }
-    return moved ? `${player.name} revelou ${card.title}, foi ate a proxima casa ATP e ganhou 1 ATP.` : `${player.name} revelou ${card.title}, mas nao encontrou casa ATP.`;
+    const result = await moveToNextSpecialByCard(player, "atp");
+    return result.moved
+      ? `${player.name} revelou ${card.title} e foi ate a proxima casa ATP. ${result.message}`
+      : `${player.name} revelou ${card.title}, mas nao encontrou casa ATP.`;
   }
   if (title.includes("helicase")) {
     player.ignoreNextAtpCost += 1;
@@ -1758,8 +2185,8 @@ async function applyPackEventCard(card, player) {
     return `${player.name} revelou ${card.title} e perdeu 1 ATP.`;
   }
   if (title.includes("falha metabolica") || title.includes("dano estrutural")) {
-    movePlayerByCard(player, -2);
-    return `${player.name} revelou ${card.title} e voltou 2 casas.`;
+    const movementMessage = await movePlayerByCard(player, -2);
+    return `${player.name} revelou ${card.title} e voltou 2 casas. ${movementMessage}`;
   }
   if (title.includes("proteina defeituosa")) {
     const aaLoss = loseAminoAcids(player, 10);
@@ -1785,13 +2212,12 @@ async function applyPackEventCard(card, player) {
     return `${player.name} revelou ${card.title} e perdeu 1 DNA.`;
   }
   if (title.includes("instabilidade genetica") || title.includes("radiacao excessiva")) {
-    movePlayerByCard(player, -3);
-    return `${player.name} revelou ${card.title} e voltou 3 casas.`;
+    const movementMessage = await movePlayerByCard(player, -3);
+    return `${player.name} revelou ${card.title} e voltou 3 casas. ${movementMessage}`;
   }
   if (title.includes("quebra da fita")) {
-    player.position = checkpointIndex;
-    updatePawns();
-    return `${player.name} revelou ${card.title} e voltou ao checkpoint da fase S.`;
+    const movementMessage = await movePlayerToCheckpointByCard(player);
+    return `${player.name} revelou ${card.title} e foi ao checkpoint da fase S. ${movementMessage}`;
   }
   if (title.includes("radiacao uv")) {
     const value = await rollResourceDie();
@@ -1814,6 +2240,9 @@ async function applyPackEventCard(card, player) {
     return `${player.name} revelou ${card.title} e perdeu 1 proteina mitotica.`;
   }
   if (title.includes("cromossomos desalinhados")) {
+    if (player.phase === "M" && player.mitosisStage === "prophase") {
+      return `${player.name} revelou ${card.title}, mas ainda esta na Profase. Nada aconteceu.`;
+    }
     player.mitosisStage = "metaphase";
     player.position = innerCheckpointIndex;
     updatePawns();
@@ -1839,13 +2268,18 @@ function resolveEvent(player) {
   return new Promise((resolve) => {
     const phase = player.phase || "G1";
     const cards = getEventCardsForPhase(phase);
-    const displayCards = Array.from({ length: 5 }, () => cards[Math.floor(Math.random() * cards.length)]);
+    const displayCards = getBalancedEventChoices(cards);
 
+    clearEventAutoCloseTimer();
+    if (eventResolver) {
+      eventResolverStack.push(eventResolver);
+    }
     eventResolver = resolve;
     eventTitle.textContent = `Cartas de evento - ${phase}`;
     eventInstruction.textContent = `${player.name}, escolha uma carta da fase ${phase}.`;
     eventReveal.hidden = true;
     eventReveal.textContent = "";
+    pendingEventAction = null;
     eventContinue.disabled = true;
     eventCardGrid.innerHTML = "";
 
@@ -1872,7 +2306,7 @@ function resolveEvent(player) {
   });
 }
 
-async function revealEventCard(selectedCard, card, player) {
+function revealEventCard(selectedCard, card, player) {
   if (eventContinue.disabled === false) return;
 
   eventCardGrid.querySelectorAll(".event-card").forEach((button) => {
@@ -1884,13 +2318,19 @@ async function revealEventCard(selectedCard, card, player) {
   selectedCard.classList.remove("is-disabled");
   selectedCard.classList.add("is-flipped");
 
-  const message = await card.apply(player);
+  pendingEventAction = { card, player };
+  const cardPhase = card.phase || player.phase || "G1";
+  const message = `${player.name} revelou ${card.title}. Efeito: ${getEventCardDescription(cardPhase, card.title)} Feche a carta para aplicar.`;
   eventReveal.textContent = message;
   eventReveal.hidden = false;
+  eventModal.hidden = false;
   eventContinue.disabled = false;
-  updateResourcePanel();
-  drawPlayers();
-  setMessage(message, "Clique em Continuar para passar a vez.");
+  clearEventAutoCloseTimer();
+  eventAutoCloseTimer = window.setTimeout(() => {
+    if (!eventResolver || eventContinue.disabled) return;
+    eventContinue.click();
+  }, 7000);
+  setMessage(message, "Clique em Continuar para aplicar a carta.");
 }
 
 function resolveDamage(player) {
@@ -1989,7 +2429,7 @@ function parseAdminCommand(rawCommand) {
     return { ok: false, message: "Use comandos começando com /." };
   }
 
-  const moveMatch = command.match(/^\/(azul|vermelho|verde|amarelo)(\d+)$/);
+  const moveMatch = command.match(/^\/(azul|vermelho|verde|amarelo|roxo|laranja)(\d+)$/);
   if (moveMatch) {
     return {
       ok: true,
@@ -1999,7 +2439,7 @@ function parseAdminCommand(rawCommand) {
     };
   }
 
-  const phaseSkipMatch = command.match(/^\/(azul|vermelho|verde|amarelo)\+$/);
+  const phaseSkipMatch = command.match(/^\/(azul|vermelho|verde|amarelo|roxo|laranja)\+$/);
   if (phaseSkipMatch) {
     return {
       ok: true,
@@ -2304,6 +2744,11 @@ function nextTurn(message) {
 }
 
 function resetGame() {
+  resetPlayersToInitialState();
+  updateTurn("Escolha os peoes para iniciar a partida.");
+  openPlayerSetupModal();
+  return;
+
   players.forEach((player) => {
     player.position = -1;
     player.phase = "G1";
@@ -2341,11 +2786,25 @@ drawPlayers();
 updatePawns();
 renderRoundHistory();
 updateTurn("Clique em um peão para colocá-lo no Checkpoint/Inicio.");
+openPlayerSetupModal();
 
 enterButton.addEventListener("click", placeCurrentPawn);
 dice.addEventListener("click", rollDice);
 resetButton.addEventListener("click", resetGame);
 rulesButton.addEventListener("click", openRulesModal);
+fullscreenButton.addEventListener("click", toggleFullscreen);
+setupPlayerGrid.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-setup-player]");
+  if (!button) return;
+  const index = Number(button.dataset.setupPlayer);
+  if (setupSelectedPlayers.has(index)) {
+    setupSelectedPlayers.delete(index);
+  } else {
+    setupSelectedPlayers.add(index);
+  }
+  renderSetupModal();
+});
+startGameButton.addEventListener("click", startSelectedPlayers);
 rulesClose.addEventListener("click", closeRulesModal);
 rulesModal.addEventListener("click", (event) => {
   if (event.target === rulesModal) {
@@ -2404,12 +2863,27 @@ adminCommandInput.addEventListener("keydown", (event) => {
     executeAdminCommand();
   }
 });
-eventContinue.addEventListener("click", () => {
+eventContinue.addEventListener("click", async () => {
   if (!eventResolver || eventContinue.disabled) return;
-  const message = eventReveal.textContent || "Evento concluído.";
+  clearEventAutoCloseTimer();
+  const pending = pendingEventAction;
+  pendingEventAction = null;
+  const previewMessage = eventReveal.textContent || "Evento concluído.";
   const resolve = eventResolver;
-  eventResolver = null;
+  eventResolver = eventResolverStack.pop() || null;
+  eventContinue.disabled = true;
   eventModal.hidden = true;
+  let message = previewMessage;
+  if (pending) {
+    setMessage(
+      `${pending.player.name} aplicando ${pending.card.title}.`,
+      "Acompanhe o efeito da carta no tabuleiro.",
+    );
+    message = await pending.card.apply(pending.player);
+    updateResourcePanel();
+    drawPlayers();
+    updatePawns();
+  }
   resolve(message);
 });
 checkpointAdvance.addEventListener("click", async () => {
@@ -2428,11 +2902,10 @@ checkpointAdvance.addEventListener("click", async () => {
   if (checkpointResolver.type === "G2") {
     if ((player.atp < 4 && player.ignoreNextAtpCost <= 0) || player.mitoticProteins < 2 || player.dnaCards < 2) return;
     payAtp(player, 4);
-    player.mitoticProteins -= 2;
     player.phase = "M";
     player.mitosisStage = "prophase";
     player.position = innerCheckpointIndex;
-    closeCheckpointModal(`${player.name} pagou 4 ATPs e 2 proteinas mitoticas e avancou para a Mitose.`);
+    closeCheckpointModal(`${player.name} pagou 4 ATPs, levou 2 proteinas mitoticas para a Mitose e avancou para a Profase.`);
     return;
   }
 
@@ -2446,11 +2919,24 @@ checkpointAdvance.addEventListener("click", async () => {
 });
 checkpointTrade.addEventListener("click", () => {
   if (!checkpointResolver) return;
+  if (checkpointResolver.type === "M") return;
   const player = checkpointResolver.player;
   if (player.proteins < 2) return;
   player.proteins -= 2;
   player.atp += 1;
   checkpointResolver.introMessage = `${checkpointResolver.introMessage} ${player.name} trocou 2 proteinas por 1 ATP.`;
+  updateResourcePanel();
+  drawPlayers();
+  renderCheckpointModal();
+});
+checkpointMitoticTrade.addEventListener("click", () => {
+  if (!checkpointResolver) return;
+  if (!(checkpointResolver.type === "G2" || checkpointResolver.type === "M")) return;
+  const player = checkpointResolver.player;
+  if (player.proteins < 2) return;
+  player.proteins -= 2;
+  player.mitoticProteins += 1;
+  checkpointResolver.conversionMessage = `${checkpointResolver.conversionMessage || ""} ${player.name} trocou 2 proteinas por 1 proteina mitotica.`;
   updateResourcePanel();
   drawPlayers();
   renderCheckpointModal();
@@ -2503,6 +2989,7 @@ document.addEventListener("keydown", (event) => {
 
 document.addEventListener("fullscreenchange", () => {
   document.body.classList.toggle("is-fullscreen", Boolean(document.fullscreenElement));
+  updateFullscreenButton();
 });
 
 function openRulesModal() {
@@ -2539,6 +3026,8 @@ function renderRulesModal() {
       <p>ATP: ao parar, ganha 1 ATP.</p>
       <p>Evento: abre cartas da fase atual.</p>
       <p>Dano celular: exige reparo com recursos; se faltar, aplica a penalidade da fase.</p>
+      <p>Avance/Volte: move o peao 2 ou 3 casas e ativa a casa onde parar.</p>
+      <p>Jogue novamente: o jogador ganha mais uma jogada. Perca 1 rodada: perde a proxima jogada.</p>
       <p>Checkpoint: resolve volta, trocas, pagamentos e avancos de fase.</p>
     </section>
 
@@ -2675,7 +3164,7 @@ function getPackEventCardDescription(phase, title) {
   if (normalizedTitle.includes("radiacao uv")) return "Role o dado: 1-2 perde 1 DNA; 3-6 nada acontece.";
   if (normalizedTitle.includes("erro detectado")) return "Volte ao inicio do G2 e perca recursos coletados desde o checkpoint.";
   if (normalizedTitle.includes("proteinas mitoticas insuficientes")) return "Perca 1 proteina mitotica.";
-  if (normalizedTitle.includes("cromossomos desalinhados")) return "Retorne ao inicio da Metafase.";
+  if (normalizedTitle.includes("cromossomos desalinhados")) return "Retorne ao inicio da Metafase. Na Profase, nada acontece.";
   if (normalizedTitle.includes("divisao instavel")) return "Role o dado: 1-2 volta ao inicio da Mitose; 3-6 nada acontece.";
   if (normalizedTitle.includes("erro irreversivel")) return "Volte ao G2.";
   return "Nada acontece.";
@@ -2709,4 +3198,14 @@ function toggleFullscreen() {
   }
 
   document.documentElement.requestFullscreen?.();
+}
+
+function updateFullscreenButton() {
+  if (!fullscreenButton) return;
+  const isFullscreen = Boolean(document.fullscreenElement);
+  fullscreenButton.setAttribute("aria-label", isFullscreen ? "Sair da tela cheia" : "Ativar tela cheia");
+  fullscreenButton.innerHTML = `
+    <span aria-hidden="true">${isFullscreen ? "↙" : "⛶"}</span>
+    ${isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+  `;
 }

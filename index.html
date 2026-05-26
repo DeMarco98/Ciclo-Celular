@@ -3,25 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Corrida do Ciclo Celular</title>
+    <title>Missão: Divisão Celular</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="game-shell">
       <section class="board-panel" aria-label="Tabuleiro do ciclo celular">
-        <div class="top-player-bar">
-          <div class="player-grid players" id="players" aria-label="Peões"></div>
+        <div class="board-toolbar">
+          <button class="fullscreen-button" id="fullscreenButton" type="button" aria-label="Ativar tela cheia">
+            <span aria-hidden="true">⛶</span>
+            Tela cheia
+          </button>
         </div>
         <div class="board" id="board">
           <div class="center-lab">
-            <p class="eyebrow">Ciclo celular</p>
-            <h1>Corrida da divisão</h1>
-            <div class="phase-ring" aria-hidden="true">
-              <span>G1</span>
-              <span>S</span>
-              <span>G2</span>
-              <span>M</span>
-            </div>
+            <img class="center-board-image" src="assets/centro-tabuleiro.png" alt="Missão: Divisão Celular" />
           </div>
         </div>
       </section>
@@ -42,23 +38,10 @@
         </div>
 
         <div class="card">
-          <p class="card-label">Recursos do jogador</p>
-          <p class="phase-line" id="phaseText">Fase atual: G1</p>
-          <div class="resource-grid">
-            <div class="resource-box">
-              <span class="resource-name">ATP</span>
-              <span class="resource-value" id="resourceAtp">0</span>
-            </div>
-            <div class="resource-box">
-              <span class="resource-name">Proteínas</span>
-              <span class="resource-value" id="resourceProteins">0</span>
-            </div>
-            <div class="resource-box">
-              <span class="resource-name">AA</span>
-              <span class="resource-value" id="resourceAa">0</span>
-            </div>
-          </div>
-          <p class="resource-note" id="resourceNote">Para avançar de G1 para S, junte no mínimo 2 ATPs e 2 proteínas.</p>
+          <p class="card-label">Recursos dos jogadores</p>
+          <p class="phase-line" id="phaseText">Jogadores ativos</p>
+          <div class="resource-grid resource-player-list" id="resourcePlayerList"></div>
+          <p class="resource-note" id="resourceNote">Inicie a partida para acompanhar os recursos de cada peão.</p>
         </div>
 
         <div class="card">
@@ -76,7 +59,7 @@
         </div>
 
         <p class="result" id="resultText">Resultado atual: 1</p>
-        <p class="hint" id="hintText">Clique nos peões para adicionar ou remover jogadores do tabuleiro.</p>
+        <p class="hint" id="hintText">Use Reiniciar partida para escolher novamente os peoes.</p>
 
         <button class="enter-button is-hidden" id="enterButton" type="button">Colocar peão em jogo</button>
 
@@ -154,6 +137,18 @@
       </div>
     </div>
 
+    <div class="modal" id="playerSetupModal" hidden>
+      <div class="modal-panel setup-panel" role="dialog" aria-modal="true" aria-labelledby="playerSetupTitle">
+        <h2 id="playerSetupTitle">Escolha os peoes</h2>
+        <p class="setup-text">Selecione quem vai participar desta partida.</p>
+        <div class="setup-player-grid" id="setupPlayerGrid"></div>
+        <p class="admin-feedback" id="setupFeedback"></p>
+        <div class="modal-actions">
+          <button class="secondary-button" id="startGameButton" type="button">Iniciar Partida</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal" id="adminLoginModal" hidden>
       <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="adminLoginTitle">
         <h2 id="adminLoginTitle">Login admin</h2>
@@ -225,6 +220,7 @@
         <div class="modal-actions">
           <button class="secondary-button" id="checkpointAdvance" type="button">Passar para a fase S</button>
           <button class="secondary-button" id="checkpointTrade" type="button">Trocar 2 proteínas por 1 ATP</button>
+          <button class="secondary-button" id="checkpointMitoticTrade" type="button">Trocar 2 proteínas por 1 proteína mitótica</button>
           <button class="secondary-button" id="checkpointBuyDna" type="button">Comprar 1 DNA por 2 ATPs</button>
           <button class="ghost-button" id="checkpointContinue" type="button">Continuar coletando</button>
         </div>
