@@ -1562,36 +1562,6 @@ h1 span {
     print-color-adjust: exact;
   }
 
-  body.print-board {
-    margin: 0;
-    background: #ffffff;
-  }
-
-  body.print-board * {
-    visibility: hidden !important;
-  }
-
-  body.print-board .board,
-  body.print-board .board * {
-    visibility: visible !important;
-  }
-
-  body.print-board .board {
-    position: fixed !important;
-    inset: 0 auto auto 0 !important;
-    width: 48cm !important;
-    height: 48cm !important;
-    max-width: none !important;
-    max-height: none !important;
-    aspect-ratio: 1 / 1 !important;
-    overflow: hidden !important;
-    box-shadow: none !important;
-  }
-
-  body.print-board .pawn {
-    display: none !important;
-  }
-
   body.print-rules {
     margin: 0;
     background: #ffffff;

@@ -2959,7 +2959,7 @@ dice.addEventListener("click", rollDice);
 resetButton.addEventListener("click", resetGame);
 rulesButton.addEventListener("click", openRulesModal);
 fullscreenButton.addEventListener("click", toggleFullscreen);
-boardPrintButton.addEventListener("click", printBoard);
+boardPrintButton.addEventListener("click", downloadBoardImage);
 setupPlayerGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-setup-player]");
   if (!button) return;
@@ -3220,12 +3220,80 @@ function startPrintMode(mode, pageStyle) {
   window.setTimeout(() => window.print(), 80);
 }
 
-function printBoard() {
-  startPrintMode("board", "@page { size: 50cm 50cm; margin: 1cm; }");
-}
-
 function printRules() {
   startPrintMode("rules", "@page { margin: 1cm; }");
+}
+
+async function assetToDataUrl(src) {
+  const response = await fetch(src);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(reader.result));
+    reader.addEventListener("error", reject);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function inlineBoardImages(clone) {
+  const images = [...clone.querySelectorAll("img")];
+  await Promise.all(
+    images.map(async (image) => {
+      const source = image.getAttribute("src");
+      if (!source || source.startsWith("data:")) return;
+      image.setAttribute("src", await assetToDataUrl(source));
+    }),
+  );
+}
+
+async function downloadBoardImage() {
+  if (!adminLoggedIn) return;
+
+  const clone = board.cloneNode(true);
+  clone.classList.add("export-board");
+  clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  clone.querySelectorAll(".pawn").forEach((pawn) => pawn.remove());
+  await inlineBoardImages(clone);
+
+  const cssResponse = await fetch("styles.css");
+  const css = await cssResponse.text();
+  const exportCss = `
+    ${css}
+    .export-board {
+      width: 4800px !important;
+      height: 4800px !important;
+      max-width: none !important;
+      max-height: none !important;
+      aspect-ratio: 1 / 1 !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+    }
+    .export-board .pawn {
+      display: none !important;
+    }
+  `;
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="50cm" height="50cm" viewBox="0 0 5000 5000">
+  <rect width="5000" height="5000" fill="#ffffff"/>
+  <foreignObject x="100" y="100" width="4800" height="4800">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <style>${exportCss}</style>
+      ${clone.outerHTML}
+    </div>
+  </foreignObject>
+</svg>`;
+
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "missao-divisao-celular-tabuleiro-50x50cm.svg";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setMessage("Imagem do tabuleiro baixada.", "Arquivo SVG em 50x50 cm com margem de 1 cm.");
 }
 
 function renderRulesModal() {
