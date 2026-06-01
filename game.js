@@ -55,6 +55,9 @@ const checkpointAdvance = document.querySelector("#checkpointAdvance");
 const checkpointTrade = document.querySelector("#checkpointTrade");
 const checkpointMitoticTrade = document.querySelector("#checkpointMitoticTrade");
 const checkpointBuyDna = document.querySelector("#checkpointBuyDna");
+const checkpointWildcardAtp = document.querySelector("#checkpointWildcardAtp");
+const checkpointWildcardProtein = document.querySelector("#checkpointWildcardProtein");
+const checkpointWildcardMitotic = document.querySelector("#checkpointWildcardMitotic");
 const checkpointContinue = document.querySelector("#checkpointContinue");
 const dnaModal = document.querySelector("#dnaModal");
 const dnaMessage = document.querySelector("#dnaMessage");
@@ -72,6 +75,7 @@ let isRolling = false;
 let adminLoggedIn = false;
 let adminSelectedPlayerIndex = 0;
 let pendingAaPlayerIndex = null;
+let pendingAaResolve = null;
 let eventResolver = null;
 const eventResolverStack = [];
 let eventAutoCloseTimer = null;
@@ -112,7 +116,6 @@ const packEventCardFiles = [
   "G1 - Neutra - Metabolismo Normal.png",
   "G1 - Neutra - Metabolismo Quimico.png",
   "G1 - Onus - Dano em Organela.png",
-  "G1 - Onus - Escassez de Nutrientes.png",
   "G1 - Onus - Extresse Oxidativo.png",
   "G1 - Onus - Falha Metabolica.png",
   "G1 - Onus - Proteina Defeituosa.png",
@@ -128,7 +131,6 @@ const packEventCardFiles = [
   "G2 - Neutra - Preparacao Completa.png",
   "G2 - Onus - Dano Estrutural.png",
   "G2 - Onus - DNA Danificado.png",
-  "G2 - Onus - Erro Detectado no Checkpoint.png",
   "G2 - Onus - Estresse Celular.png",
   "G2 - Onus - Falha de Preparacao.png",
   "G2 - Onus - Proteinas Mitoticas Insuficientes.png",
@@ -143,7 +145,6 @@ const packEventCardFiles = [
   "Mitose - Neutra - Organizacao Celular Adequada.png",
   "Mitose - Onus - Cromossomos Desalinhados.png",
   "Mitose - Onus - Divisao Instavel.png",
-  "Mitose - Onus - Erro Irreversivel.png",
   "Mitose - Onus - Falha no Fuso Mitotico.png",
   "Mitose - Onus - Nao-disjuncao Cromossomica.png",
   "Mitose - Onus - Radiacao Excessiva.png",
@@ -160,7 +161,6 @@ const packEventCardFiles = [
   "S - Onus - Erro na Replicacao.png",
   "S - Onus - Instabilidade Genetica.png",
   "S - Onus - Mutacao Detectada.png",
-  "S - Onus - Quebra da Fita Molde.png",
   "S - Onus - Radiacao UV.png",
 ];
 
@@ -211,6 +211,7 @@ function createPlayer(name, color) {
     aminoAcids: 0,
     proteins: 0,
     mitoticProteins: 0,
+    wildResources: 0,
     dnaCards: 0,
     sCheckpointVisits: 0,
     mitosisStage: "prophase",
@@ -663,7 +664,7 @@ function drawPlayers() {
     card.innerHTML = `
       <strong><i class="player-dot" style="background:${player.color}"></i>${player.name}</strong>
       <span>${place}</span>
-      <span>Fase ${player.phase}${player.phase === "M" ? `/${getMitosisStageLabel(player)}` : ""} | ATP ${player.atp} | Prot ${player.proteins} | Prot M ${player.mitoticProteins} | AA ${player.aminoAcids} | DNA ${player.dnaCards}</span>
+      <span>Fase ${player.phase}${player.phase === "M" ? `/${getMitosisStageLabel(player)}` : ""} | ATP ${player.atp} | Prot ${player.proteins} | Prot M ${player.mitoticProteins} | Coringa ${player.wildResources} | AA ${player.aminoAcids} | DNA ${player.dnaCards}</span>
     `;
     playersBox.appendChild(card);
   });
@@ -807,6 +808,7 @@ function updateResourcePanel() {
             <span>Prot <b>${player.proteins}</b></span>
             <span>AA <b>${player.aminoAcids}</b></span>
             <span>PM <b>${player.mitoticProteins}</b></span>
+            <span>Coringa <b>${player.wildResources}</b></span>
             <span>DNA <b>${player.dnaCards}</b></span>
           </div>
         </div>
@@ -869,6 +871,7 @@ function resetPlayersToInitialState() {
     player.aminoAcids = 0;
     player.proteins = 0;
     player.mitoticProteins = 0;
+    player.wildResources = 0;
     player.dnaCards = 0;
     player.sCheckpointVisits = 0;
     player.mitosisStage = "prophase";
@@ -885,6 +888,7 @@ function resetPlayersToInitialState() {
   });
   currentPlayer = 0;
   pendingAaPlayerIndex = null;
+  pendingAaResolve = null;
   eventResolver = null;
   eventResolverStack.length = 0;
   clearEventAutoCloseTimer();
@@ -966,6 +970,7 @@ function togglePlayer(index) {
   player.aminoAcids = 0;
   player.proteins = 0;
   player.mitoticProteins = 0;
+  player.wildResources = 0;
   player.dnaCards = 0;
   player.sCheckpointVisits = 0;
   player.mitosisStage = "prophase";
@@ -1360,9 +1365,7 @@ async function resolveCardLanding(player, value, chainDepth = 0) {
       );
     }
 
-    const aaRoll = await rollResourceDie();
-    addAminoAcids(player, aaRoll);
-    return `${player.name} parou em AA, rolou ${aaRoll} no dado azul e ganhou ${aaRoll} AA.`;
+    return requestAaRoll(player);
   }
 
   if (special.className === "atp") {
@@ -1486,6 +1489,7 @@ function restoreG2CheckpointSnapshot(player) {
   player.aminoAcids = snapshot.aminoAcids;
   player.proteins = snapshot.proteins;
   player.mitoticProteins = snapshot.mitoticProteins;
+  player.wildResources = snapshot.wildResources || 0;
   player.dnaCards = snapshot.dnaCards;
 }
 
@@ -1496,6 +1500,7 @@ function saveCheckpointSnapshot(player) {
     aminoAcids: player.aminoAcids,
     proteins: player.proteins,
     mitoticProteins: player.mitoticProteins,
+    wildResources: player.wildResources,
     dnaCards: player.dnaCards,
   };
 }
@@ -1518,26 +1523,52 @@ async function rollResourceDie() {
   return value;
 }
 
+function requestAaRoll(player) {
+  pendingAaPlayerIndex = players.indexOf(player);
+  currentPlayer = pendingAaPlayerIndex;
+  isRolling = false;
+  dice.classList.add("aa-roll");
+  dice.disabled = false;
+  setMessage(
+    `${player.name} parou em AA. Clique no dado azul para receber aminoácidos.`,
+    "O próximo resultado do dado será a quantidade de AA recebida.",
+  );
+  updateResourcePanel();
+  drawPlayers();
+  updatePawns();
+  return new Promise((resolve) => {
+    pendingAaResolve = resolve;
+  });
+}
+
 async function resolvePendingAaRoll() {
   const player = players[pendingAaPlayerIndex];
   if (!player) {
     pendingAaPlayerIndex = null;
+    pendingAaResolve = null;
     dice.classList.remove("aa-roll");
     updateTurn("Rolagem de AA cancelada.");
     return;
   }
 
   isRolling = true;
+  const resolveAa = pendingAaResolve;
   const aaRoll = await rollResourceDie();
   addAminoAcids(player, aaRoll);
   pendingAaPlayerIndex = null;
+  pendingAaResolve = null;
   dice.classList.remove("aa-roll");
   isRolling = false;
   updateResourcePanel();
   drawPlayers();
   updatePawns();
-  addRoundLog(player, `${player.name} rolou ${aaRoll} no dado azul e ganhou ${aaRoll} AA.`);
-  nextTurn(`${player.name} rolou ${aaRoll} no dado azul e ganhou ${aaRoll} AA.`);
+  const message = `${player.name} rolou ${aaRoll} no dado azul e ganhou ${aaRoll} AA.`;
+  if (resolveAa) {
+    resolveAa(message);
+    return;
+  }
+  addRoundLog(player, message);
+  nextTurn(message);
 }
 
 async function resolveCheckpoint(player) {
@@ -1676,6 +1707,13 @@ function renderCheckpointModal() {
   const canBuyDna = (type === "G2" || type === "M") && player.dnaCards < 2 && player.atp >= 2;
   checkpointBuyDna.hidden = !canBuyDna;
   checkpointBuyDna.disabled = !canBuyDna;
+  const hasWildcard = player.wildResources > 0;
+  checkpointWildcardAtp.hidden = !hasWildcard;
+  checkpointWildcardProtein.hidden = !hasWildcard;
+  checkpointWildcardMitotic.hidden = !hasWildcard || !(type === "G2" || type === "M");
+  checkpointWildcardAtp.disabled = !hasWildcard;
+  checkpointWildcardProtein.disabled = !hasWildcard;
+  checkpointWildcardMitotic.disabled = checkpointWildcardMitotic.hidden;
   checkpointContinue.hidden = false;
 
   if (type === "G1") {
@@ -1684,11 +1722,12 @@ function renderCheckpointModal() {
     checkpointSummary.innerHTML = `
       <div class="checkpoint-resource"><strong>ATP</strong><span>${player.atp}/2</span></div>
       <div class="checkpoint-resource"><strong>Proteinas</strong><span>${player.proteins}/2</span></div>
+      <div class="checkpoint-resource"><strong>Coringa</strong><span>${player.wildResources}</span></div>
       <div class="checkpoint-resource"><strong>AA</strong><span>${player.aminoAcids}</span></div>
     `;
     checkpointMessage.textContent = hasEnoughResources
-      ? `${introMessage} Voce tem recursos suficientes. Deseja avancar para a fase S ou continuar coletando?`
-      : `${introMessage} Recursos insuficientes: precisa de 2 ATPs e 2 proteinas. Se quiser, pode trocar 2 proteinas por 1 ATP.`;
+      ? `${introMessage}${checkpointResolver.conversionMessage || ""} Voce tem recursos suficientes. Deseja avancar para a fase S ou continuar coletando?`
+      : `${introMessage}${checkpointResolver.conversionMessage || ""} Recursos insuficientes: precisa de 2 ATPs e 2 proteinas. Se quiser, pode trocar 2 proteinas por 1 ATP ou usar um coringa.`;
     checkpointAdvance.disabled = !hasEnoughResources;
     checkpointAdvance.hidden = !hasEnoughResources;
     checkpointAdvance.textContent = "Passar para a fase S";
@@ -1704,16 +1743,18 @@ function renderCheckpointModal() {
       ? `
         <div class="checkpoint-resource"><strong>ATP</strong><span>${player.atp}/2</span></div>
         <div class="checkpoint-resource"><strong>Proteinas</strong><span>${player.proteins}</span></div>
+        <div class="checkpoint-resource"><strong>Coringa</strong><span>${player.wildResources}</span></div>
         <div class="checkpoint-resource"><strong>DNA</strong><span>${player.dnaCards}/2</span></div>
       `
       : `
         <div class="checkpoint-resource"><strong>ATP</strong><span>${player.atp}/1</span></div>
         <div class="checkpoint-resource"><strong>Proteinas</strong><span>${player.proteins}/1</span></div>
+        <div class="checkpoint-resource"><strong>Coringa</strong><span>${player.wildResources}</span></div>
         <div class="checkpoint-resource"><strong>DNA</strong><span>${player.dnaCards}/2</span></div>
       `;
     checkpointMessage.textContent = firstLap
-      ? `${introMessage} Primeira volta da fase S: precisa pagar 2 ATPs para abrir a fita molde. Pode trocar 2 proteinas por 1 ATP antes de resolver.`
-      : `${introMessage} Segunda volta da fase S: precisa pagar 1 ATP e 1 proteina para concluir a replicacao. Pode trocar 2 proteinas por 1 ATP antes de resolver.`;
+      ? `${introMessage}${checkpointResolver.conversionMessage || ""} Primeira volta da fase S: precisa pagar 2 ATPs para abrir a fita molde. Pode trocar 2 proteinas por 1 ATP ou usar um coringa antes de resolver.`
+      : `${introMessage}${checkpointResolver.conversionMessage || ""} Segunda volta da fase S: precisa pagar 1 ATP e 1 proteina para concluir a replicacao. Pode trocar 2 proteinas por 1 ATP ou usar um coringa antes de resolver.`;
     checkpointAdvance.disabled = false;
     checkpointAdvance.hidden = false;
     checkpointAdvance.textContent = firstLap ? "Abrir fita molde" : "Concluir replicacao";
@@ -1734,6 +1775,7 @@ function renderCheckpointModal() {
       <div class="checkpoint-resource"><strong>ATP</strong><span>${player.atp}/4</span></div>
       <div class="checkpoint-resource"><strong>Prot. mitoticas</strong><span>${player.mitoticProteins}/2</span></div>
       <div class="checkpoint-resource"><strong>DNA</strong><span>${player.dnaCards}/2</span></div>
+      <div class="checkpoint-resource"><strong>Coringa</strong><span>${player.wildResources}</span></div>
       <div class="checkpoint-resource"><strong>Proteinas</strong><span>${player.proteins}</span></div>
     `;
     checkpointMessage.textContent = hasEnoughResources
@@ -1761,6 +1803,7 @@ function renderCheckpointModal() {
       <div class="checkpoint-resource"><strong>Proteinas</strong><span>${player.proteins}</span></div>
       <div class="checkpoint-resource"><strong>Prot. mitoticas</strong><span>${player.mitoticProteins}</span></div>
       <div class="checkpoint-resource"><strong>DNA</strong><span>${player.dnaCards}/2</span></div>
+      <div class="checkpoint-resource"><strong>Coringa</strong><span>${player.wildResources}</span></div>
     `;
     if (stage === "prophase") {
       checkpointMessage.textContent = `${introMessage}${checkpointResolver.conversionMessage || ""} Profase: resolva obrigatoriamente. Pague 1 ATP e 1 proteina mitotica para avancar; se faltar recurso ou DNA, retorna para G2.`;
@@ -1892,6 +1935,7 @@ function returnPlayerToG2StartWithoutResources(player, reason) {
   player.aminoAcids = 0;
   player.proteins = 0;
   player.mitoticProteins = 0;
+  player.wildResources = 0;
   player.sCheckpointVisits = 2;
   player.mitosisStage = "prophase";
   player.skipTurns = 0;
@@ -2204,8 +2248,8 @@ async function applyPackEventCard(card, player) {
     return `${player.name} revelou ${card.title} e foi ao checkpoint. ${movementMessage}`;
   }
   if (title.includes("fuso mitotico estavel")) {
-    player.atp += 1;
-    return `${player.name} revelou ${card.title} e ganhou 1 recurso livre convertido em ATP.`;
+    player.wildResources += 1;
+    return `${player.name} revelou ${card.title} e ganhou 1 recurso coringa para converter quando precisar.`;
   }
   if (title.includes("dna polimeresa")) {
     const result = await moveToNextSpecialByCard(player, "atp");
@@ -2430,6 +2474,7 @@ function resetPlayerAfterApoptosis(player) {
   player.aminoAcids = 0;
   player.proteins = 0;
   player.mitoticProteins = 0;
+  player.wildResources = 0;
   player.dnaCards = 0;
   player.sCheckpointVisits = 0;
   player.mitosisStage = "prophase";
@@ -2451,6 +2496,7 @@ function eliminatePlayerByApoptosis(player) {
   player.aminoAcids = 0;
   player.proteins = 0;
   player.mitoticProteins = 0;
+  player.wildResources = 0;
   player.dnaCards = 0;
   player.sCheckpointVisits = 0;
   player.mitosisStage = "prophase";
@@ -2873,6 +2919,7 @@ function resetGame() {
     player.aminoAcids = 0;
     player.proteins = 0;
     player.mitoticProteins = 0;
+    player.wildResources = 0;
     player.dnaCards = 0;
     player.sCheckpointVisits = 0;
     player.mitosisStage = "prophase";
@@ -3050,6 +3097,30 @@ checkpointTrade.addEventListener("click", () => {
   drawPlayers();
   renderCheckpointModal();
 });
+function useWildcardResource(type) {
+  if (!checkpointResolver) return;
+  const player = checkpointResolver.player;
+  if (player.wildResources <= 0) return;
+
+  player.wildResources -= 1;
+  if (type === "atp") {
+    player.atp += 1;
+    checkpointResolver.conversionMessage = `${checkpointResolver.conversionMessage || ""} ${player.name} converteu 1 coringa em 1 ATP.`;
+  } else if (type === "protein") {
+    player.proteins += 1;
+    checkpointResolver.conversionMessage = `${checkpointResolver.conversionMessage || ""} ${player.name} converteu 1 coringa em 1 proteína.`;
+  } else if (type === "mitotic") {
+    player.mitoticProteins += 1;
+    checkpointResolver.conversionMessage = `${checkpointResolver.conversionMessage || ""} ${player.name} converteu 1 coringa em 1 proteína mitótica.`;
+  }
+
+  updateResourcePanel();
+  drawPlayers();
+  renderCheckpointModal();
+}
+checkpointWildcardAtp.addEventListener("click", () => useWildcardResource("atp"));
+checkpointWildcardProtein.addEventListener("click", () => useWildcardResource("protein"));
+checkpointWildcardMitotic.addEventListener("click", () => useWildcardResource("mitotic"));
 checkpointMitoticTrade.addEventListener("click", () => {
   if (!checkpointResolver) return;
   if (!(checkpointResolver.type === "G2" || checkpointResolver.type === "M")) return;
@@ -3300,7 +3371,7 @@ function getPackEventCardDescription(phase, title) {
   if (normalizedTitle.includes("ciclinas ativadas") || normalizedTitle.includes("checkpoint mitotico aprovado")) return "Ignore o proximo efeito negativo.";
   if (normalizedTitle.includes("mitose acelerada")) return "Avance 4 casas.";
   if (normalizedTitle.includes("separacao cromossomica")) return "Va direto para o checkpoint.";
-  if (normalizedTitle.includes("fuso mitotico estavel")) return "Ganhe 1 recurso livre convertido em ATP.";
+  if (normalizedTitle.includes("fuso mitotico estavel")) return "Ganhe 1 recurso coringa para converter em ATP, proteína ou proteína mitótica.";
   if (normalizedTitle.includes("dna polimeresa")) return "Va ate a proxima casa ATP.";
   if (normalizedTitle.includes("helicase")) return "Ignore o proximo custo de ATP.";
   if (normalizedTitle.includes("reparo genetico")) return "Proteja 1 DNA.";
