@@ -3272,14 +3272,16 @@ async function downloadBoardImage() {
       display: none !important;
     }
   `;
+  const safeCss = exportCss.replaceAll("]]>", "]]]]><![CDATA[>");
+  const boardMarkup = new XMLSerializer().serializeToString(clone);
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="50cm" height="50cm" viewBox="0 0 5000 5000">
   <rect width="5000" height="5000" fill="#ffffff"/>
   <foreignObject x="100" y="100" width="4800" height="4800">
     <div xmlns="http://www.w3.org/1999/xhtml">
-      <style>${exportCss}</style>
-      ${clone.outerHTML}
+      <style><![CDATA[${safeCss}]]></style>
+      ${boardMarkup}
     </div>
   </foreignObject>
 </svg>`;
