@@ -84,7 +84,43 @@ button {
 .board-toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   margin-bottom: 6px;
+}
+
+body.admin-mode .board-toolbar {
+  justify-content: space-between;
+}
+
+.admin-only {
+  display: none !important;
+}
+
+body.admin-mode .admin-only {
+  display: inline-flex !important;
+}
+
+.print-icon-button {
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(39, 49, 61, 0.12);
+  border-radius: 999px;
+  color: #315370;
+  background: rgba(255, 253, 250, 0.92);
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(30, 42, 54, 0.08);
+}
+
+.print-icon-button:hover {
+  border-color: rgba(47, 125, 225, 0.42);
+  background: #f3f9ff;
+}
+
+.print-icon-button span {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .fullscreen-button {
@@ -1083,6 +1119,22 @@ h1 span {
   box-shadow: inset 0 -4px 9px rgba(0, 0, 0, 0.22);
 }
 
+.rules-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.rules-header h2 {
+  margin: 0;
+}
+
+.rules-print-button {
+  flex: 0 0 auto;
+}
+
 .rules-section {
   margin: 0 0 16px;
   padding: 16px;
@@ -1501,6 +1553,82 @@ h1 span {
 
   .controls {
     position: static;
+  }
+}
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.print-board {
+    margin: 0;
+    background: #ffffff;
+  }
+
+  body.print-board * {
+    visibility: hidden !important;
+  }
+
+  body.print-board .board,
+  body.print-board .board * {
+    visibility: visible !important;
+  }
+
+  body.print-board .board {
+    position: fixed !important;
+    inset: 0 auto auto 0 !important;
+    width: 48cm !important;
+    height: 48cm !important;
+    max-width: none !important;
+    max-height: none !important;
+    aspect-ratio: 1 / 1 !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+  }
+
+  body.print-board .pawn {
+    display: none !important;
+  }
+
+  body.print-rules {
+    margin: 0;
+    background: #ffffff;
+  }
+
+  body.print-rules * {
+    visibility: hidden !important;
+  }
+
+  body.print-rules #rulesModal,
+  body.print-rules #rulesModal * {
+    visibility: visible !important;
+  }
+
+  body.print-rules #rulesModal {
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.print-rules #rulesModal .modal-panel {
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body.print-rules .modal-actions,
+  body.print-rules .print-icon-button {
+    display: none !important;
   }
 }
 

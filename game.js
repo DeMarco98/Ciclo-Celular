@@ -12,6 +12,7 @@ const resultText = document.querySelector("#resultText");
 const roundHistory = document.querySelector("#roundHistory");
 const rulesButton = document.querySelector("#rulesButton");
 const fullscreenButton = document.querySelector("#fullscreenButton");
+const boardPrintButton = document.querySelector("#boardPrintButton");
 const rulesModal = document.querySelector("#rulesModal");
 const rulesClose = document.querySelector("#rulesClose");
 const playerSetupModal = document.querySelector("#playerSetupModal");
@@ -2817,6 +2818,7 @@ function closeAdminLogin() {
 function submitAdminLogin() {
   if (adminUser.value === "admin" && adminPassword.value === "admin321") {
     adminLoggedIn = true;
+    document.body.classList.add("admin-mode");
     adminStatus.textContent = "Modo admin ativo. Pressione Enter para abrir o painel.";
     adminLoginButton.textContent = "Admin ativo";
     closeAdminLogin();
@@ -2957,6 +2959,7 @@ dice.addEventListener("click", rollDice);
 resetButton.addEventListener("click", resetGame);
 rulesButton.addEventListener("click", openRulesModal);
 fullscreenButton.addEventListener("click", toggleFullscreen);
+boardPrintButton.addEventListener("click", printBoard);
 setupPlayerGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-setup-player]");
   if (!button) return;
@@ -3195,10 +3198,45 @@ function closeRulesModal() {
   rulesModal.hidden = true;
 }
 
+function setPrintPageStyle(cssText) {
+  document.querySelector("#dynamicPrintPageStyle")?.remove();
+  const style = document.createElement("style");
+  style.id = "dynamicPrintPageStyle";
+  style.textContent = cssText;
+  document.head.appendChild(style);
+}
+
+function clearPrintMode(mode) {
+  document.body.classList.remove(`print-${mode}`);
+  document.querySelector("#dynamicPrintPageStyle")?.remove();
+}
+
+function startPrintMode(mode, pageStyle) {
+  if (!adminLoggedIn) return;
+  setPrintPageStyle(pageStyle);
+  document.body.classList.add(`print-${mode}`);
+  const cleanup = () => clearPrintMode(mode);
+  window.addEventListener("afterprint", cleanup, { once: true });
+  window.setTimeout(() => window.print(), 80);
+}
+
+function printBoard() {
+  startPrintMode("board", "@page { size: 50cm 50cm; margin: 1cm; }");
+}
+
+function printRules() {
+  startPrintMode("rules", "@page { margin: 1cm; }");
+}
+
 function renderRulesModal() {
   const panel = rulesModal.querySelector(".modal-panel");
   panel.innerHTML = `
-    <h2 id="rulesTitle">Regras do jogo</h2>
+    <div class="rules-header">
+      <h2 id="rulesTitle">Regras do jogo</h2>
+      <button class="print-icon-button rules-print-button admin-only" id="rulesPrintButton" type="button" aria-label="Imprimir ou salvar regras" title="Imprimir ou salvar regras">
+        <span aria-hidden="true">⎙</span>
+      </button>
+    </div>
 
     <section class="rules-section">
       <h3>Objetivo principal</h3>
@@ -3295,6 +3333,7 @@ function renderRulesModal() {
 
   panel.querySelector("#rulesClose").addEventListener("click", closeRulesModal);
   panel.querySelector("#eventLibraryButton").addEventListener("click", openEventLibraryModal);
+  panel.querySelector("#rulesPrintButton").addEventListener("click", printRules);
 }
 
 function openEventLibraryModal() {
