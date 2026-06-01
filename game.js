@@ -56,6 +56,10 @@ const checkpointTrade = document.querySelector("#checkpointTrade");
 const checkpointMitoticTrade = document.querySelector("#checkpointMitoticTrade");
 const checkpointBuyDna = document.querySelector("#checkpointBuyDna");
 const checkpointContinue = document.querySelector("#checkpointContinue");
+const dnaModal = document.querySelector("#dnaModal");
+const dnaMessage = document.querySelector("#dnaMessage");
+const dnaCardDisplay = document.querySelector("#dnaCardDisplay");
+const dnaContinue = document.querySelector("#dnaContinue");
 
 const gridSize = 14;
 const outerMax = gridSize - 1;
@@ -73,6 +77,9 @@ const eventResolverStack = [];
 let eventAutoCloseTimer = null;
 let pendingEventAction = null;
 let checkpointResolver = null;
+let dnaResolver = null;
+let dnaFlipTimer = null;
+let dnaCloseTimer = null;
 let setupSelectedPlayers = new Set([0, 1, 2, 3, 4, 5]);
 const roundLog = [];
 const dicePipMap = {
@@ -305,7 +312,7 @@ function buildSpecialCells() {
     [2, outerMax, "Avance 2", "Avance 2 casas", "action-cell advance-cell", "advance2", { type: "move", steps: 2 }],
     [outerMax, 4, "Avance 3", "Avance 3 casas", "action-cell advance-cell strong-action", "advance3", { type: "move", steps: 3 }],
     [10, outerMax, "Volte 2", "Volte 2 casas", "action-cell retreat-cell", "retreat2", { type: "move", steps: -2 }],
-    [0, 4, "Volte 3", "Volte 3 casas", "action-cell retreat-cell strong-action", "retreat3", { type: "move", steps: -3 }],
+    [0, 6, "Volte 3", "Volte 3 casas", "action-cell retreat-cell strong-action", "retreat3", { type: "move", steps: -3 }],
     [outerMax - 1, 0, "Jogue novamente", "Jogue novamente", "action-cell replay-cell", "replay", { type: "again" }],
     [outerMax, 10, "Perca 1 rodada", "Perca 1 rodada", "action-cell skip-cell", "skip", { type: "skip" }],
   ];
@@ -383,10 +390,8 @@ function buildSpecialCells() {
   });
 
   const innerActionHouses = [
-    [7, innerMin, "Avance 2", "Avance 2 casas", "action-cell advance-cell", "advance2", { type: "move", steps: 2 }],
-    [innerMax, 7, "Avance 3", "Avance 3 casas", "action-cell advance-cell strong-action", "advance3", { type: "move", steps: 3 }],
-    [10, innerMax, "Volte 2", "Volte 2 casas", "action-cell retreat-cell", "retreat2", { type: "move", steps: -2 }],
-    [innerMin, 7, "Volte 3", "Volte 3 casas", "action-cell retreat-cell strong-action", "retreat3", { type: "move", steps: -3 }],
+    [innerMax, 10, "Avance 3", "Avance 3 casas", "action-cell advance-cell strong-action", "advance3", { type: "move", steps: 3 }],
+    [innerMin, 5, "Volte 3", "Volte 3 casas", "action-cell retreat-cell strong-action", "retreat3", { type: "move", steps: -3 }],
     [3, innerMax, "Jogue novamente", "Jogue novamente", "action-cell replay-cell", "replay", { type: "again" }],
     [innerMax, 3, "Perca 1 rodada", "Perca 1 rodada", "action-cell skip-cell", "skip", { type: "skip" }],
   ];
@@ -469,8 +474,8 @@ function getCellIcon(icon, label, special = {}) {
       advance3: { main: "+3", text: "AVANCE", color: "#1f9d8a" },
       retreat2: { main: "-2", text: "VOLTE", color: "#eb5757" },
       retreat3: { main: "-3", text: "VOLTE", color: "#c0398f" },
-      replay: { main: "↻", text: "JOGUE", color: "#2f80ed" },
-      skip: { main: "×1", text: "PERCA", color: "#8e5bb8" },
+      replay: { top: "JOGUE", bottom: "NOVAMENTE", color: "#2f80ed" },
+      skip: { top: "PERCA", bottom: "UMA RODADA", color: "#8e5bb8" },
     }[icon];
     const arrowRotation = getArrowRotation(special.arrowDirection || "right");
     const isMoveCell = special.action?.type === "move";
@@ -482,9 +487,29 @@ function getCellIcon(icon, label, special = {}) {
               <path d="M23 30h40" fill="none" stroke="#26313d" stroke-width="9" stroke-linecap="round"></path>
               <path d="M52 15l17 15-17 15" fill="none" stroke="#26313d" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path>
             </g>`
-          : `<path d="${icon === "replay" ? "M65 29a23 23 0 1 0 6 24M65 29v18H47" : "M30 28l36 36M66 28L30 64"}" fill="none" stroke="#26313d" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>`}
-        <text x="48" y="66" text-anchor="middle" font-size="${isMoveCell ? 35 : 27}" font-weight="900" fill="${config.color}" stroke="#ffffff" stroke-width="3" paint-order="stroke">${config.main}</text>
-        <text x="48" y="88" text-anchor="middle" font-size="10" font-weight="900" fill="#26313d">${config.text}</text>
+          : icon === "replay"
+            ? `<text x="48" y="18" text-anchor="middle" font-size="10" font-weight="900" fill="#26313d">${config.top}</text>
+              <g fill="none" stroke="#26313d" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M65 42a19 19 0 0 0-31-12"></path>
+                <path d="M35 30h16V15"></path>
+                <path d="M31 54a19 19 0 0 0 31 12"></path>
+                <path d="M62 66H46v15"></path>
+              </g>
+              <circle cx="48" cy="48" r="10" fill="${config.color}" stroke="#ffffff" stroke-width="4"></circle>
+              <path d="M43 48h10M49 43v10" stroke="#ffffff" stroke-width="4" stroke-linecap="round"></path>
+              <text x="48" y="88" text-anchor="middle" font-size="8" font-weight="900" fill="#26313d">${config.bottom}</text>`
+            : `<text x="48" y="18" text-anchor="middle" font-size="10" font-weight="900" fill="#26313d">${config.top}</text>
+              <g fill="none" stroke="#26313d" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M34 27h28"></path>
+                <path d="M34 69h28"></path>
+                <path d="M39 27c0 11 18 12 18 21S39 58 39 69"></path>
+                <path d="M57 27c0 11-18 12-18 21s18 10 18 21"></path>
+              </g>
+              <circle cx="70" cy="32" r="11" fill="${config.color}" stroke="#ffffff" stroke-width="4"></circle>
+              <path d="M65 27l10 10M75 27L65 37" stroke="#ffffff" stroke-width="4" stroke-linecap="round"></path>
+              <text x="48" y="88" text-anchor="middle" font-size="8" font-weight="900" fill="#26313d">${config.bottom}</text>`}
+        ${isMoveCell ? `<text x="48" y="66" text-anchor="middle" font-size="35" font-weight="900" fill="${config.color}" stroke="#ffffff" stroke-width="3" paint-order="stroke">${config.main}</text>
+        <text x="48" y="88" text-anchor="middle" font-size="10" font-weight="900" fill="#26313d">${config.text}</text>` : ""}
       </svg>
     `;
   }
@@ -795,9 +820,9 @@ function updateResourcePanel() {
   } else if (player.phase === "S") {
     resourceNote.textContent = `Sintese: DNA ${player.dnaCards}/2. Checkpoint ${player.sCheckpointVisits}/2. Na fase S, passar por AA consome 1 aminoacido.`;
   } else if (player.phase === "G2") {
-    resourceNote.textContent = `G2: precisa de 4 ATPs, 2 proteinas mitoticas e 2 cartas DNA para avancar. Proteinas mitoticas: ${player.mitoticProteins}/2.`;
+    resourceNote.textContent = `G2: precisa de 4 ATPs, 2 proteínas mitóticas e 2 cartas DNA para avançar. Ao completar a volta, ganha 1 ATP e 1 proteína.`;
   } else if (player.phase === "M") {
-    resourceNote.textContent = `Mitose: ${getMitosisStageLabel(player)}. DNA ${player.dnaCards}/2, ATP ${player.atp}, proteinas mitoticas ${player.mitoticProteins}.`;
+    resourceNote.textContent = `Mitose: ${getMitosisStageLabel(player)}. DNA ${player.dnaCards}/2, ATP ${player.atp}, proteínas mitóticas ${player.mitoticProteins}.`;
   } else {
     resourceNote.textContent = "Citocinese concluida.";
   }
@@ -1051,9 +1076,9 @@ async function resolveMove(value) {
         await wait(270);
         continue;
       }
-      addAminoAcids(player, 1);
+      addAminoAcids(player, 2);
       setMessage(
-        `${playerName} passou por AA e ganhou 1 aminoácido.`,
+        `${playerName} passou por AA e ganhou 2 aminoácidos.`,
         "Ao juntar 20 aminoácidos, 1 proteína é formada automaticamente.",
       );
     }
@@ -1316,8 +1341,8 @@ async function resolveCardPassEffect(player) {
     return `${player.name} passou por AA na ${getMitosisStageLabel(player)}, mas nao coleta mais recursos ao passar.`;
   }
 
-  addAminoAcids(player, 1);
-  return `${player.name} passou por AA e ganhou 1 aminoacido.`;
+  addAminoAcids(player, 2);
+  return `${player.name} passou por AA e ganhou 2 aminoacidos.`;
 }
 
 async function resolveCardLanding(player, value, chainDepth = 0) {
@@ -1394,8 +1419,9 @@ async function resolveCheckpointForCardMove(player) {
     message += ` Por completar 1 volta na fase ${player.phase}, ganhou 1 proteina.`;
   } else if (player.phase === "G2" || player.phase === "M") {
     player.atp += 1;
+    player.proteins += 1;
     player.collectedAtpThisLap = true;
-    message += ` Por completar 1 volta na fase ${player.phase}, ganhou 1 ATP.`;
+    message += ` Por completar 1 volta na fase ${player.phase}, ganhou 1 ATP e 1 proteína.`;
   }
 
   if (player.phase === "G1") {
@@ -1522,8 +1548,9 @@ async function resolveCheckpoint(player) {
     message += ` Por completar 1 volta na fase ${player.phase}, ganhou 1 proteina.`;
   } else if (player.phase === "G2" || player.phase === "M") {
     player.atp += 1;
+    player.proteins += 1;
     player.collectedAtpThisLap = true;
-    message += ` Por completar 1 volta na fase ${player.phase}, ganhou 1 ATP.`;
+    message += ` Por completar 1 volta na fase ${player.phase}, ganhou 1 ATP e 1 proteína.`;
   }
 
   if (player.phase === "G1") {
@@ -1642,7 +1669,7 @@ function clearEventAutoCloseTimer() {
 function renderCheckpointModal() {
   if (!checkpointResolver) return;
   const { player, type, introMessage } = checkpointResolver;
-  checkpointTrade.hidden = type === "M" || player.proteins < 2;
+  checkpointTrade.hidden = player.proteins < 2;
   checkpointTrade.disabled = checkpointTrade.hidden;
   checkpointMitoticTrade.hidden = !(type === "G2" || type === "M") || player.proteins < 2;
   checkpointMitoticTrade.disabled = checkpointMitoticTrade.hidden;
@@ -1720,8 +1747,8 @@ function renderCheckpointModal() {
   }
 
   if (type === "M") {
-    checkpointTrade.hidden = true;
-    checkpointTrade.disabled = true;
+    checkpointTrade.hidden = player.proteins < 2;
+    checkpointTrade.disabled = player.proteins < 2;
     checkpointMitoticTrade.hidden = player.proteins < 2;
     checkpointMitoticTrade.disabled = player.proteins < 2;
     const stage = player.mitosisStage;
@@ -1772,7 +1799,7 @@ function closeCheckpointModal(message) {
   resolve(message);
 }
 
-function resolveSCheckpoint(player, introMessage) {
+async function resolveSCheckpoint(player, introMessage) {
   if (player.sCheckpointVisits === 0) {
     const trade = tradeProteinsForAtp(player, 2, 0);
     if (player.atp < 2) {
@@ -1803,25 +1830,29 @@ function resolveSCheckpoint(player, introMessage) {
   player.dnaCards = Math.max(player.dnaCards, 2);
   player.phase = "G2";
   player.position = innerCheckpointIndex;
+  updateResourcePanel();
+  drawPlayers();
+  updatePawns();
+  await showDnaCardModal(player, "gain");
   const tradeMessage = trade > 0 ? ` Trocou ${trade} proteina${trade > 1 ? "s" : ""} por ATP antes do pagamento.` : "";
   return `${introMessage}${tradeMessage} ${player.name} gastou 1 ATP e 1 proteina, recebeu a segunda carta DNA e entrou no tabuleiro interno para a fase G2.`;
 }
 
-function applySCheckpointPayment(player) {
+async function applySCheckpointPayment(player) {
   if (player.sCheckpointVisits === 0) {
     if (player.atp < 2 && player.ignoreNextAtpCost <= 0) {
-      eliminatePlayerByApoptosis(player);
-      return `${player.name} nao tinha ATP suficiente para abrir a fita molde, sofreu apoptose e perdeu o jogo.`;
+      resetPlayerAfterApoptosis(player);
+      return `${player.name} não tinha ATP suficiente para abrir a dupla hélice, sofreu apoptose e retornou para G1.`;
     }
 
     payAtp(player, 2);
     player.sCheckpointVisits = 1;
-    return `${player.name} gastou 2 ATPs para abrir a fita molde e segue para a segunda volta da fase S.`;
+    return `${player.name} gastou 2 ATPs para abrir a dupla hélice e segue para a segunda volta da fase S.`;
   }
 
   if ((player.atp < 1 && player.ignoreNextAtpCost <= 0) || player.proteins < 1) {
-    eliminatePlayerByApoptosis(player);
-    return `${player.name} nao tinha recursos suficientes para concluir a replicacao, sofreu apoptose e perdeu o jogo.`;
+    resetPlayerAfterApoptosis(player);
+    return `${player.name} não tinha recursos suficientes para concluir a replicação, sofreu apoptose e retornou para G1.`;
   }
 
   payAtp(player, 1);
@@ -1830,7 +1861,11 @@ function applySCheckpointPayment(player) {
   player.dnaCards = Math.max(player.dnaCards, 2);
   player.phase = "G2";
   player.position = innerCheckpointIndex;
-  return `${player.name} gastou 1 ATP e 1 proteina, recebeu a segunda carta DNA e entrou no tabuleiro interno para a fase G2.`;
+  updateResourcePanel();
+  drawPlayers();
+  updatePawns();
+  await showDnaCardModal(player, "gain");
+  return `${player.name} gastou 1 ATP e 1 proteína, recebeu a segunda carta DNA e entrou no tabuleiro interno para a fase G2.`;
 }
 
 function getMitosisStageLabel(player) {
@@ -1848,6 +1883,27 @@ function returnPlayerToG2(player, reason) {
   player.mitosisStage = "prophase";
   player.position = innerCheckpointIndex;
   return `${player.name} voltou para G2: ${reason}`;
+}
+
+function returnPlayerToG2StartWithoutResources(player, reason) {
+  player.phase = "G2";
+  player.position = innerCheckpointIndex;
+  player.atp = 0;
+  player.aminoAcids = 0;
+  player.proteins = 0;
+  player.mitoticProteins = 0;
+  player.sCheckpointVisits = 2;
+  player.mitosisStage = "prophase";
+  player.skipTurns = 0;
+  player.extraTurn = false;
+  player.ignoreNextDamage = 0;
+  player.ignoreNextAtpCost = 0;
+  player.ignoreNextNegative = 0;
+  player.collectedAtpThisLap = false;
+  player.finished = false;
+  player.lost = false;
+  saveCheckpointSnapshot(player);
+  return `${player.name} voltou para o início da G2 sem recursos: ${reason}`;
 }
 
 function advanceMitosisStage(player) {
@@ -2201,6 +2257,19 @@ async function applyPackEventCard(card, player) {
     player.skipTurns = Math.max(player.skipTurns, 1);
     return `${player.name} revelou ${card.title} e perdera a proxima jogada.`;
   }
+  if (title.includes("dna danificado") && (player.phase === "G2" || player.phase === "M")) {
+    if (player.atp >= 2) {
+      player.atp -= 2;
+      updateResourcePanel();
+      drawPlayers();
+      updatePawns();
+      await showDnaCardModal(player, "repair");
+      return `${player.name} revelou ${card.title} e pagou 2 ATPs para reparar o DNA.`;
+    }
+    const result = loseDna(player, 1);
+    if (result.protected) return `${player.name} revelou ${card.title}, mas o DNA foi protegido.`;
+    return returnPlayerToG2StartWithoutResources(player, "não tinha 2 ATPs para reparar o DNA danificado.");
+  }
   if (title.includes("dna danificado") && card.phase === "S") {
     player.atp = Math.max(0, player.atp - 1);
     return `${player.name} revelou ${card.title} e gastou 1 ATP para reparar.`;
@@ -2346,8 +2415,8 @@ function resolveDamage(player) {
   }
 
   if (player.phase === "S") {
-    eliminatePlayerByApoptosis(player);
-    return `${player.name} caiu em dano celular na fase S sem recursos suficientes, sofreu apoptose e perdeu o jogo.`;
+    resetPlayerAfterApoptosis(player);
+    return `${player.name} caiu em dano celular na fase S sem recursos suficientes, sofreu apoptose e retornou para G1.`;
   }
 
   resetPlayerAfterApoptosis(player);
@@ -2729,6 +2798,54 @@ function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+function clearDnaCardTimers() {
+  if (dnaFlipTimer) {
+    window.clearTimeout(dnaFlipTimer);
+    dnaFlipTimer = null;
+  }
+  if (dnaCloseTimer) {
+    window.clearTimeout(dnaCloseTimer);
+    dnaCloseTimer = null;
+  }
+}
+
+function closeDnaCardModal() {
+  clearDnaCardTimers();
+  dnaModal.hidden = true;
+  dnaCardDisplay.classList.remove("is-flipped");
+  if (dnaResolver) {
+    const resolve = dnaResolver;
+    dnaResolver = null;
+    resolve();
+  }
+}
+
+function showDnaCardModal(player, mode = "gain") {
+  clearDnaCardTimers();
+  if (dnaResolver) {
+    const resolve = dnaResolver;
+    dnaResolver = null;
+    resolve();
+  }
+
+  dnaMessage.textContent =
+    mode === "repair"
+      ? `Jogador ${player.name} teve o DNA reparado.`
+      : `Jogador ${player.name} ganhou uma Carta DNA.`;
+  dnaCardDisplay.classList.remove("is-flipped");
+  dnaModal.hidden = false;
+
+  dnaFlipTimer = window.setTimeout(() => {
+    dnaCardDisplay.classList.add("is-flipped");
+    dnaFlipTimer = null;
+  }, 2000);
+
+  dnaCloseTimer = window.setTimeout(closeDnaCardModal, 5000);
+  return new Promise((resolve) => {
+    dnaResolver = resolve;
+  });
+}
+
 function nextTurn(message) {
   currentPlayer = findNextActivePlayer(currentPlayer);
   const skipped = [];
@@ -2863,6 +2980,7 @@ adminCommandInput.addEventListener("keydown", (event) => {
     executeAdminCommand();
   }
 });
+dnaContinue.addEventListener("click", closeDnaCardModal);
 eventContinue.addEventListener("click", async () => {
   if (!eventResolver || eventContinue.disabled) return;
   clearEventAutoCloseTimer();
@@ -2890,7 +3008,7 @@ checkpointAdvance.addEventListener("click", async () => {
   if (!checkpointResolver) return;
   const player = checkpointResolver.player;
   if (checkpointResolver.type === "S") {
-    closeCheckpointModal(applySCheckpointPayment(player));
+    closeCheckpointModal(await applySCheckpointPayment(player));
     return;
   }
 
@@ -2915,11 +3033,14 @@ checkpointAdvance.addEventListener("click", async () => {
   player.phase = "S";
   player.dnaCards = Math.max(player.dnaCards, 1);
   player.sCheckpointVisits = 0;
+  updateResourcePanel();
+  drawPlayers();
+  updatePawns();
+  await showDnaCardModal(player, "gain");
   closeCheckpointModal(`${player.name} pagou 2 ATPs e 2 proteinas, recebeu a primeira carta DNA e avancou para a fase S.`);
 });
 checkpointTrade.addEventListener("click", () => {
   if (!checkpointResolver) return;
-  if (checkpointResolver.type === "M") return;
   const player = checkpointResolver.player;
   if (player.proteins < 2) return;
   player.proteins -= 2;
@@ -2941,16 +3062,18 @@ checkpointMitoticTrade.addEventListener("click", () => {
   drawPlayers();
   renderCheckpointModal();
 });
-checkpointBuyDna.addEventListener("click", () => {
+checkpointBuyDna.addEventListener("click", async () => {
   if (!checkpointResolver) return;
   const player = checkpointResolver.player;
   if (!(checkpointResolver.type === "G2" || checkpointResolver.type === "M")) return;
   if (player.dnaCards >= 2 || player.atp < 2) return;
   player.atp -= 2;
   player.dnaCards += 1;
-  checkpointResolver.introMessage = `${checkpointResolver.introMessage} ${player.name} comprou 1 DNA por 2 ATPs.`;
   updateResourcePanel();
   drawPlayers();
+  updatePawns();
+  await showDnaCardModal(player, "repair");
+  checkpointResolver.introMessage = `${checkpointResolver.introMessage} ${player.name} reparou 1 DNA por 2 ATPs.`;
   renderCheckpointModal();
 });
 checkpointContinue.addEventListener("click", () => {
@@ -3008,59 +3131,89 @@ function renderRulesModal() {
 
     <section class="rules-section">
       <h3>Objetivo principal</h3>
-      <p>Complete o ciclo celular passando por G1, S, G2 e Mitose ate concluir a Citocinese.</p>
-      <p>Vence quem administrar melhor ATP, aminoacidos, proteinas, DNA e proteinas mitoticas para concluir a divisao celular.</p>
+      <p>Complete o ciclo celular passando pelas fases <strong>G1</strong>, <strong>S</strong>, <strong>G2</strong> e <strong>Mitose</strong> até concluir a Citocinese, completando o <strong>Ciclo Celular</strong>.</p>
+      <p>Vence quem administrar melhor <strong>ATP, aminoácidos, proteínas, DNA e proteínas mitóticas</strong> para concluir a divisão celular.</p>
     </section>
 
     <section class="rules-section">
-      <h3>Regras globais</h3>
-      <p>O peao sempre para no checkpoint, mesmo que o dado tenha casas sobrando.</p>
-      <p>A cada 20 aminoacidos, o jogador forma automaticamente 1 proteina comum.</p>
-      <p>Em qualquer checkpoint, o jogador pode trocar 2 proteinas comuns por 1 ATP.</p>
-      <p>Ao parar em Evento, o jogador escolhe uma carta da fase atual.</p>
+      <h3>Casas</h3>
+      <p><strong>AA:</strong> Ganha ou perde aminoácidos dependendo da fase.</p>
+      <p><strong>ATP:</strong> Ganha 1 <strong>ATP</strong>.</p>
+      <p><strong>Evento:</strong> Sorteia uma carta de Bônus/Ônus da fase correspondente.</p>
+      <p><strong>Jogue novamente:</strong> Joga mais uma vez.</p>
+      <p><strong>Perca uma rodada:</strong> Fica uma rodada sem jogar.</p>
+      <p><strong>Avance 2 casas:</strong> Anda 2 casas para frente.</p>
+      <p><strong>Volte 2 casas:</strong> Volta 2 casas para trás.</p>
+      <p><strong>Avance 3 casas:</strong> Anda 3 casas para frente.</p>
+      <p><strong>Volte 3 casas:</strong> Volta 3 casas para trás.</p>
+      <p><strong>Dano celular:</strong> Pague 1 <strong>ATP</strong> e 1 <strong>proteína</strong> para reparar. Na falta de recursos sofre apoptose e recomeça o jogo.</p>
+      <p><strong>Checkpoint:</strong> Final/Início do tabuleiro. Tem ações diferentes dependendo da fase.</p>
     </section>
 
     <section class="rules-section">
-      <h3>Casas do tabuleiro</h3>
-      <p>AA: aminoacidos. O efeito muda por fase; parar em AA ativa o dado azul.</p>
-      <p>ATP: ao parar, ganha 1 ATP.</p>
-      <p>Evento: abre cartas da fase atual.</p>
-      <p>Dano celular: exige reparo com recursos; se faltar, aplica a penalidade da fase.</p>
-      <p>Avance/Volte: move o peao 2 ou 3 casas e ativa a casa onde parar.</p>
-      <p>Jogue novamente: o jogador ganha mais uma jogada. Perca 1 rodada: perde a proxima jogada.</p>
-      <p>Checkpoint: resolve volta, trocas, pagamentos e avancos de fase.</p>
+      <h3>Regras Gerais</h3>
+      <p>As fases <strong>G1</strong> e <strong>S</strong> ocorrem no tabuleiro externo e as fases <strong>G2</strong> e <strong>Mitose</strong> no interno.</p>
+      <p>O peão obrigatoriamente para no <strong>Checkpoint</strong>, independentemente do número sortido no dado.</p>
+      <p>Sempre ao chegar no <strong>Checkpoint</strong>, o jogador pode trocar 2 <strong>proteínas</strong> comuns por 1 <strong>ATP</strong>.</p>
+      <p>Em caso de perca de <strong>ATPs</strong> precipitadamente, caso tenha recursos o jogador poderá realizar a troca de 2 <strong>proteínas</strong> comuns por 1 <strong>ATP</strong>.</p>
+      <p>Durante a fase <strong>G1</strong> e <strong>S</strong>, ao completar a volta no tabuleiro, recebe 1 <strong>proteína</strong>.</p>
+      <p>Durante a fase <strong>G2</strong> e <strong>Mitose</strong>, ao completar a volta no tabuleiro, recebe 1 <strong>ATP</strong> e 1 <strong>proteína</strong>.</p>
+      <p>A cada 20 <strong>aminoácidos (AA)</strong> forma uma <strong>proteína</strong>.</p>
+      <p>Ao parar na casa <strong>Evento</strong> o jogador sorteia uma carta da fase atual.</p>
+      <p>Durante as fases <strong>G1, G2 e Mitose</strong>, ao parar na casa <strong>AA</strong> o jogador rola o dado novamente e o número que cair será a quantidade de aminoácidos (<strong>AAs</strong>) que o jogador irá receber.</p>
+      <p>Durante as fases <strong>G1</strong> e <strong>G2</strong>, ao passar por uma casa <strong>AA</strong>, o jogador recebe 2 aminoácidos (<strong>AAs</strong>).</p>
+      <p>Durante a Fase <strong>S</strong>, ao parar ou passar por uma casa <strong>AA</strong> o jogador perde 1 aminoácido (<strong>AA</strong>).</p>
     </section>
 
     <section class="rules-section">
-      <h3>Fase G1</h3>
-      <p>Objetivo: juntar 2 ATPs e 2 proteinas para avancar para S.</p>
-      <p>Passar por AA ganha 1 aminoacido. Parar em AA rola o dado azul e ganha o valor em aminoacidos.</p>
-      <p>Ao completar uma volta, ganha 1 proteina. No checkpoint, decide se avanca ou continua coletando.</p>
+      <h3>G1 – Crescimento Celular</h3>
+      <p>A fase G1 é a primeira etapa da interfase, onde a célula cresce, produz proteínas e acumula energia para se preparar para a <strong>duplicação do DNA</strong>.</p>
+      <p>O objetivo dessa fase é juntar o máximo de ATP e proteína possível para passar para a próxima fase.</p>
+      <p><strong>DICA:</strong> Acumule o máximo de recursos que conseguir antes de avançar de fase para não ficar sem quando for necessário.</p>
+      <p><strong>Checkpoint G1 (Análise de recursos):</strong> Se o jogador já possuir os recursos necessários, ele deve decidir se continuará coletando recursos antes de avançar de fase, ou se já irá avançar. (Na falta de recursos obrigatoriamente deve continuar coletando).</p>
+      <p><strong>Falta de recursos:</strong> Caso o jogador não tenha recursos suficientes ao cair na casa <strong>“Dano celular”</strong> ou sortear uma carta <strong>“ônus”</strong>, o jogador sofre <strong>apoptose</strong> e retorna para o início perdendo todos os recursos remanescentes.</p>
+      <p>(Verifique as <strong>regras gerais</strong> para funcionalidade das demais regras).</p>
     </section>
 
     <section class="rules-section">
-      <h3>Fase S</h3>
-      <p>Ao entrar em S, recebe 1 carta DNA. A fase dura duas voltas.</p>
-      <p>Na primeira volta, paga 2 ATPs para abrir a fita molde.</p>
-      <p>Na segunda volta, paga 1 ATP e 1 proteina, recebe a segunda carta DNA e avanca para G2.</p>
-      <p>Na fase S, passar ou parar em AA consome 1 aminoacido.</p>
+      <h3>S (Síntese) – Replicação do DNA</h3>
+      <p>É a etapa do ciclo celular em que ocorre a duplicação do DNA, garantindo que a célula tenha uma cópia completa do material genético para cada “célula-filha” após a divisão.</p>
+      <p>Essa fase ocorre a abertura da <strong>dupla hélice</strong>, separando-a em duas fitas, onde cada fita passa a atuar como fita molde, ao final formando duas moléculas de DNA idênticas.</p>
+      <p><strong>Chegada na fase:</strong> Ao chegar nessa fase o jogador recebe uma Carta <strong>DNA</strong>.</p>
+      <p><strong>Duração:</strong> A fase ocorre em duas fases do tabuleiro, onde a primeira volta é a abertura da <strong>dupla hélice</strong> e a segunda volta ocorre o fechamento das fitas moldes.</p>
+      <p><strong>Checkpoint S:</strong> Na primeira volta o jogador precisa pagar 2 <strong>ATPs</strong> para abrir a <strong>dupla hélice</strong>.</p>
+      <p><strong>Checkpoint S:</strong> Na segunda volta o jogador precisa pagar 1 <strong>ATP</strong> e 1 <strong>proteína</strong>.</p>
+      <p><strong>Falta de recursos:</strong> A falta de recursos causa <strong>apoptose</strong> e o jogador retorna para <strong>G1</strong>, perdendo todos os recursos remanescentes e volta a coletar recursos para retornar a fase <strong>S</strong>.</p>
+      <p><strong>Conclusão da fase:</strong> Ao concluir a replicação da fase S, o jogador recebe uma segunda carta <strong>DNA</strong> e avança para fase <strong>G2</strong> (tabuleiro interno).</p>
+      <p>(Verifique as <strong>regras gerais</strong> para funcionalidade das demais regras).</p>
     </section>
 
     <section class="rules-section">
-      <h3>Fase G2</h3>
-      <p>O jogador passa para o tabuleiro interno e precisa manter 2 cartas DNA.</p>
-      <p>Para avancar para Mitose, precisa de 4 ATPs e 2 proteinas mitoticas.</p>
-      <p>No checkpoint interno, 2 proteinas comuns formam 1 proteina mitotica.</p>
-      <p>Ao completar uma volta em G2, ganha 1 ATP. AA, ATP e Evento funcionam como na G1.</p>
+      <h3>G2 – Preparação para divisão celular</h3>
+      <p>É a fase de preparação final e controle de qualidade antes da <strong>mitose</strong>, onde é realizada a produção de <strong>proteínas</strong>, a célula continua gerando <strong>ATP</strong> e realizada a transformação de proteínas comuns em <strong>proteínas mitóticas</strong>.</p>
+      <p><strong>DICA:</strong> fase similar a fase <strong>G1</strong>, colete o máximo de recursos que puder antes de avançar de fase.</p>
+      <p><strong>Carta DNA:</strong> É necessário possuir duas cartas de <strong>DNA</strong>. No caso ter o <strong>DNA danificado</strong> (onde perderia a carta), é necessário pagar 2 <strong>ATPs</strong> para reparar o <strong>DNA</strong>, caso não possua <strong>ATP</strong> suficiente é necessário voltar ao início da <strong>G2</strong> e coletar recursos novamente.</p>
+      <p>Para avançar para a <strong>Mitose</strong> são necessários 4 <strong>ATPs</strong> e 2 <strong>proteínas mitóticas</strong>.</p>
+      <p><strong>Checkpoint G2:</strong> O jogador troca 2 <strong>proteínas</strong> comuns por 1 <strong>proteína mitótica</strong>.</p>
+      <p><strong>Checkpoint G2:</strong> Se o jogador já possuir os recursos necessários, ele deve decidir se continuará coletando recursos antes de avançar de fase, ou se já irá avançar. (Na falta de recursos obrigatoriamente deve continuar coletando).</p>
+      <p><strong>Falta de recursos:</strong> Caso o jogador não tenha recursos suficientes ao sortear uma carta <strong>“ônus”</strong>, o jogador sofre <strong>apoptose</strong> e retorna para o início da <strong>G2</strong> perdendo todos os recursos remanescentes.</p>
+      <p>(Verifique as <strong>regras gerais</strong> para funcionalidade das demais regras).</p>
     </section>
 
     <section class="rules-section">
-      <h3>Fase M</h3>
-      <p>A Mitose acontece no tabuleiro interno: Profase, Metafase, Anafase/Telofase e Citocinese.</p>
-      <p>Na Profase, paga 1 ATP e 1 proteina mitotica para avancar. Se faltar recurso ou DNA, volta para G2.</p>
-      <p>Na Metafase, no checkpoint rola o dado: 1-2 reinicia a Metafase; 3-6 avanca.</p>
-      <p>Na Anafase/Telofase, paga 1 ATP e 1 proteina mitotica para concluir a Citocinese e vencer.</p>
-      <p>Depois da Profase, passar por AA nao coleta recurso; parar em AA ainda rola o dado azul.</p>
+      <h3>Mitose – Divisão Celular</h3>
+      <p>É a fase em que a célula divide seu material genético duplicado e forma duas células-filhas geneticamente idênticas. A mitose ocorre em 4 etapas: <strong>prófase, metáfase, anáfase/telófase</strong> e na <strong>citocinese</strong> conclui o ciclo da divisão celular.</p>
+      <p><strong>Carta DNA:</strong> É necessário possuir duas cartas de <strong>DNA</strong>. No caso de ter o <strong>DNA danificado</strong> (onde perderia a carta), é necessário pagar 2 <strong>ATPs</strong> para reparar o <strong>DNA</strong>, caso não possua <strong>ATP</strong> suficiente é necessário voltar ao início da <strong>G2</strong> e coletar recursos novamente.</p>
+      <p><strong>Duração de cada etapa:</strong> uma volta no tabuleiro</p>
+      <p><strong>Prófase:</strong> Última coleta de recursos.</p>
+      <p>Ao passar por uma casa <strong>AA</strong> (aminoácido), o jogador recebe 2 <strong>aminoácidos</strong>.</p>
+      <p>Ao chegar no checkpoint paga 1 <strong>ATP</strong> e 1 <strong>proteína mitótica</strong> para avançar (Se não houver recursos suficientes, retorna para o <strong>G2</strong>).</p>
+      <p>Prófase concluída, avança para <strong>metáfase</strong> e agora ao passar pela casa <strong>AA</strong>, não ganhará mais recursos, apenas se parar diretamente na casa <strong>AA</strong>.</p>
+      <p><strong>Metáfase:</strong> Alinhamento cromossômico.</p>
+      <p>Ao chegar no <strong>checkpoint</strong> rola o dado, se cair 1 ou 2 = Cromossomos desalinhados, volta ao início da <strong>metáfase</strong>, se cair 3-6 = Cromossomos alinhados, passe para próxima fase.</p>
+      <p><strong>Anáfase/Telófase:</strong></p>
+      <p>Ao chegar no <strong>checkpoint</strong> paga 1 <strong>ATP</strong> e 1 <strong>proteína mitótica</strong> para avançar (Se não houver recursos suficientes, retorna para o <strong>G2</strong>).</p>
+      <p>(Verifique as <strong>regras gerais</strong> para funcionalidade das demais regras).</p>
     </section>
 
     <div class="modal-actions">
@@ -3157,6 +3310,7 @@ function getPackEventCardDescription(phase, title) {
   if (normalizedTitle.includes("falha metabolica") || normalizedTitle.includes("dano estrutural")) return "Volte 2 casas.";
   if (normalizedTitle.includes("proteina defeituosa")) return "Perca 10 aminoacidos.";
   if (normalizedTitle.includes("toxina celular") || normalizedTitle.includes("mutacao detectada") || normalizedTitle.includes("falha de preparacao") || normalizedTitle.includes("falha no fuso")) return "Perca a proxima jogada.";
+  if (normalizedTitle.includes("dna danificado") && (phase === "G2" || phase === "M")) return "Pague 2 ATPs para reparar o DNA; se não houver ATP suficiente, volte ao início da G2 sem recursos.";
   if (normalizedTitle.includes("dna danificado") && phase === "S") return "Gaste 1 ATP para reparar.";
   if (normalizedTitle.includes("dna danificado") || normalizedTitle.includes("nao-disjuncao")) return "Perca 1 DNA.";
   if (normalizedTitle.includes("instabilidade genetica") || normalizedTitle.includes("radiacao excessiva")) return "Volte 3 casas.";

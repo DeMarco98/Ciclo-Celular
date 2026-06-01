@@ -227,6 +227,26 @@
       </div>
     </div>
 
+    <div class="modal dna-modal" id="dnaModal" hidden>
+      <div class="modal-panel dna-card-panel" role="dialog" aria-modal="true" aria-labelledby="dnaTitle">
+        <h2 id="dnaTitle">Carta DNA</h2>
+        <p class="event-instruction" id="dnaMessage">Jogador ganhou uma Carta DNA.</p>
+        <div class="dna-card-display" id="dnaCardDisplay" aria-live="polite">
+          <div class="dna-card-inner">
+            <div class="dna-card-face dna-card-back">
+              <img src="assets/dna-card-back.png" alt="Costas da Carta DNA" />
+            </div>
+            <div class="dna-card-face dna-card-front">
+              <img src="assets/dna-card.png" alt="Carta DNA" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-button" id="dnaContinue" type="button">Continuar</button>
+        </div>
+      </div>
+    </div>
+
     <script src="game.js"></script>
   </body>
 </html>
