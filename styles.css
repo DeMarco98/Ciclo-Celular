@@ -1556,52 +1556,6 @@ h1 span {
   }
 }
 
-@media print {
-  * {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  body.print-rules {
-    margin: 0;
-    background: #ffffff;
-  }
-
-  body.print-rules * {
-    visibility: hidden !important;
-  }
-
-  body.print-rules #rulesModal,
-  body.print-rules #rulesModal * {
-    visibility: visible !important;
-  }
-
-  body.print-rules #rulesModal {
-    position: static !important;
-    display: block !important;
-    width: auto !important;
-    min-height: auto !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-  }
-
-  body.print-rules #rulesModal .modal-panel {
-    width: auto !important;
-    max-width: none !important;
-    max-height: none !important;
-    overflow: visible !important;
-    padding: 0 !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-  }
-
-  body.print-rules .modal-actions,
-  body.print-rules .print-icon-button {
-    display: none !important;
-  }
-}
-
 @media (max-width: 720px) {
   .game-shell {
     width: min(100vw - 16px, 620px);

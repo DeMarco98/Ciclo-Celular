@@ -3198,32 +3198,6 @@ function closeRulesModal() {
   rulesModal.hidden = true;
 }
 
-function setPrintPageStyle(cssText) {
-  document.querySelector("#dynamicPrintPageStyle")?.remove();
-  const style = document.createElement("style");
-  style.id = "dynamicPrintPageStyle";
-  style.textContent = cssText;
-  document.head.appendChild(style);
-}
-
-function clearPrintMode(mode) {
-  document.body.classList.remove(`print-${mode}`);
-  document.querySelector("#dynamicPrintPageStyle")?.remove();
-}
-
-function startPrintMode(mode, pageStyle) {
-  if (!adminLoggedIn) return;
-  setPrintPageStyle(pageStyle);
-  document.body.classList.add(`print-${mode}`);
-  const cleanup = () => clearPrintMode(mode);
-  window.addEventListener("afterprint", cleanup, { once: true });
-  window.setTimeout(() => window.print(), 80);
-}
-
-function printRules() {
-  startPrintMode("rules", "@page { margin: 1cm; }");
-}
-
 async function assetToDataUrl(src) {
   const response = await fetch(src);
   const blob = await response.blob();
@@ -3235,7 +3209,7 @@ async function assetToDataUrl(src) {
   });
 }
 
-async function inlineBoardImages(clone) {
+async function inlineImages(clone) {
   const images = [...clone.querySelectorAll("img")];
   await Promise.all(
     images.map(async (image) => {
@@ -3246,6 +3220,18 @@ async function inlineBoardImages(clone) {
   );
 }
 
+function downloadSvgFile(svg, fileName) {
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function downloadBoardImage() {
   if (!adminLoggedIn) return;
 
@@ -3253,7 +3239,7 @@ async function downloadBoardImage() {
   clone.classList.add("export-board");
   clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
   clone.querySelectorAll(".pawn").forEach((pawn) => pawn.remove());
-  await inlineBoardImages(clone);
+  await inlineImages(clone);
 
   const cssResponse = await fetch("styles.css");
   const css = await cssResponse.text();
@@ -3286,16 +3272,72 @@ async function downloadBoardImage() {
   </foreignObject>
 </svg>`;
 
-  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "missao-divisao-celular-tabuleiro-50x50cm.svg";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadSvgFile(svg, "missao-divisao-celular-tabuleiro-50x50cm.svg");
   setMessage("Imagem do tabuleiro baixada.", "Arquivo SVG em 50x50 cm com margem de 1 cm.");
+}
+
+async function downloadRulesImage() {
+  if (!adminLoggedIn) return;
+
+  const panel = rulesModal.querySelector(".modal-panel");
+  const clone = panel.cloneNode(true);
+  clone.classList.add("export-rules-panel");
+  clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+  clone.querySelectorAll(".modal-actions, .print-icon-button").forEach((element) => element.remove());
+  await inlineImages(clone);
+
+  const measuringBox = document.createElement("div");
+  measuringBox.style.position = "absolute";
+  measuringBox.style.left = "-99999px";
+  measuringBox.style.top = "0";
+  measuringBox.style.width = "1100px";
+  measuringBox.style.visibility = "hidden";
+  clone.style.width = "1100px";
+  clone.style.maxWidth = "none";
+  clone.style.maxHeight = "none";
+  clone.style.overflow = "visible";
+  clone.style.boxShadow = "none";
+  measuringBox.appendChild(clone);
+  document.body.appendChild(measuringBox);
+  const contentHeight = Math.ceil(clone.scrollHeight) + 120;
+
+  const cssResponse = await fetch("styles.css");
+  const css = await cssResponse.text();
+  const exportCss = `
+    ${css}
+    .export-rules-panel {
+      width: 1100px !important;
+      max-width: none !important;
+      max-height: none !important;
+      overflow: visible !important;
+      padding: 48px !important;
+      border-radius: 0 !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      background: #fffdfa !important;
+    }
+    .export-rules-panel .rules-section {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+  `;
+  const safeCss = exportCss.replaceAll("]]>", "]]]]><![CDATA[>");
+  const rulesMarkup = new XMLSerializer().serializeToString(clone);
+  measuringBox.remove();
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="${contentHeight}px" viewBox="0 0 1200 ${contentHeight}">
+  <rect width="1200" height="${contentHeight}" fill="#ffffff"/>
+  <foreignObject x="50" y="50" width="1100" height="${contentHeight - 100}">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <style><![CDATA[${safeCss}]]></style>
+      ${rulesMarkup}
+    </div>
+  </foreignObject>
+</svg>`;
+
+  downloadSvgFile(svg, "missao-divisao-celular-regras.svg");
+  setMessage("Imagem das regras baixada.", "Arquivo SVG com o layout das regras.");
 }
 
 function renderRulesModal() {
@@ -3303,8 +3345,8 @@ function renderRulesModal() {
   panel.innerHTML = `
     <div class="rules-header">
       <h2 id="rulesTitle">Regras do jogo</h2>
-      <button class="print-icon-button rules-print-button admin-only" id="rulesPrintButton" type="button" aria-label="Imprimir ou salvar regras" title="Imprimir ou salvar regras">
-        <span aria-hidden="true">⎙</span>
+      <button class="print-icon-button rules-print-button admin-only" id="rulesPrintButton" type="button" aria-label="Baixar imagem das regras" title="Baixar regras em SVG">
+        <span aria-hidden="true">⇩</span>
       </button>
     </div>
 
@@ -3403,7 +3445,7 @@ function renderRulesModal() {
 
   panel.querySelector("#rulesClose").addEventListener("click", closeRulesModal);
   panel.querySelector("#eventLibraryButton").addEventListener("click", openEventLibraryModal);
-  panel.querySelector("#rulesPrintButton").addEventListener("click", printRules);
+  panel.querySelector("#rulesPrintButton").addEventListener("click", downloadRulesImage);
 }
 
 function openEventLibraryModal() {
