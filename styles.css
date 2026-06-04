@@ -197,9 +197,7 @@ body.admin-mode .admin-only {
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  background:
-    radial-gradient(circle at center, rgba(217, 245, 223, 0.36), transparent 34%),
-    var(--paper);
+  background: #fbfaf6;
   border: 3px solid var(--line);
   overflow: hidden;
 }
@@ -1038,6 +1036,8 @@ h1 span {
   font-size: 0.92rem;
   font-weight: 700;
   cursor: pointer;
+  text-align: center;
+  text-decoration: none;
 }
 
 .modal[hidden] {
@@ -1071,6 +1071,45 @@ h1 span {
 .modal-panel h2 {
   margin: 0 0 16px;
   font-size: 1.6rem;
+}
+
+.box-download-panel {
+  width: min(100%, 560px);
+}
+
+.box-download-intro {
+  margin: -6px 0 18px;
+  color: #405268;
+  line-height: 1.45;
+}
+
+.box-download-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.box-download-section h3 {
+  margin: 0;
+  color: #17456c;
+  font-size: 1rem;
+}
+
+.box-download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.box-download-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+}
+
+.box-download-wide {
+  width: 100%;
 }
 
 .setup-panel {
@@ -1331,11 +1370,14 @@ h1 span {
 }
 
 .admin-action-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .admin-number-button,
 .admin-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 48px;
   padding: 10px;
 }
@@ -1539,6 +1581,10 @@ h1 span {
 @media (max-width: 720px) {
   .event-card-grid {
     grid-template-columns: repeat(2, minmax(118px, 1fr));
+  }
+
+  .box-download-grid {
+    grid-template-columns: 1fr;
   }
 
   .event-card {

@@ -43,6 +43,9 @@ const adminAddAa = document.querySelector("#adminAddAa");
 const adminAddAtp = document.querySelector("#adminAddAtp");
 const adminAdvancePhase = document.querySelector("#adminAdvancePhase");
 const adminRegressPhase = document.querySelector("#adminRegressPhase");
+const adminDownloadBox = document.querySelector("#adminDownloadBox");
+const boxDownloadModal = document.querySelector("#boxDownloadModal");
+const boxDownloadClose = document.querySelector("#boxDownloadClose");
 const eventModal = document.querySelector("#eventModal");
 const eventTitle = document.querySelector("#eventTitle");
 const eventInstruction = document.querySelector("#eventInstruction");
@@ -3018,6 +3021,18 @@ adminAddAa.addEventListener("click", () => applyAdminResource("aa"));
 adminAddAtp.addEventListener("click", () => applyAdminResource("atp"));
 adminAdvancePhase.addEventListener("click", () => applyAdminPhaseChange("forward"));
 adminRegressPhase.addEventListener("click", () => applyAdminPhaseChange("backward"));
+adminDownloadBox.addEventListener("click", openBoxDownloadModal);
+boxDownloadClose.addEventListener("click", closeBoxDownloadModal);
+boxDownloadModal.addEventListener("click", (event) => {
+  if (event.target === boxDownloadModal) {
+    closeBoxDownloadModal();
+  }
+});
+boxDownloadModal.querySelectorAll("[download]").forEach((link) => {
+  link.addEventListener("click", () => {
+    setMessage("Imagem da caixa baixada.", "O arquivo SVG escolhido foi enviado para download.");
+  });
+});
 adminCommandClose.addEventListener("click", closeAdminCommand);
 adminCommandModal.addEventListener("click", (event) => {
   if (event.target === adminCommandModal) {
@@ -3274,6 +3289,15 @@ async function downloadBoardImage() {
 
   downloadSvgFile(svg, "missao-divisao-celular-tabuleiro-50x50cm.svg");
   setMessage("Imagem do tabuleiro baixada.", "Arquivo SVG em 50x50 cm com margem de 1 cm.");
+}
+
+function openBoxDownloadModal() {
+  if (!adminLoggedIn) return;
+  boxDownloadModal.hidden = false;
+}
+
+function closeBoxDownloadModal() {
+  boxDownloadModal.hidden = true;
 }
 
 async function downloadRulesImage() {

@@ -192,6 +192,7 @@
             <button class="secondary-button admin-action" id="adminAddAtp" type="button">ATP</button>
             <button class="secondary-button admin-action" id="adminAdvancePhase" type="button">Avan&ccedil;ar</button>
             <button class="secondary-button admin-action" id="adminRegressPhase" type="button">Retroceder</button>
+            <button class="secondary-button admin-action" id="adminDownloadBox" type="button">Baixar caixa</button>
           </div>
         </section>
         <input class="field command-field" id="adminCommandInput" type="text" placeholder="/azul5, /addaa20, /addatp2, /removeaa" autocomplete="off" />
@@ -199,6 +200,28 @@
         <div class="modal-actions">
           <button class="secondary-button" id="adminRun" type="button">Executar</button>
           <button class="ghost-button" id="adminCommandClose" type="button">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="boxDownloadModal" hidden>
+      <div class="modal-panel box-download-panel" role="dialog" aria-modal="true" aria-labelledby="boxDownloadTitle">
+        <h2 id="boxDownloadTitle">Baixar imagem da caixa</h2>
+        <p class="box-download-intro">Escolha baixar as partes separadas para recortar e colar, ou a caixa montada para dobrar.</p>
+        <section class="box-download-section">
+          <h3>Partes separadas</h3>
+          <div class="box-download-grid">
+            <a class="secondary-button box-download-link" href="assets/caixa-parte-central-40x27cm.svg" download="caixa-parte-central-40x27cm.svg">Central 40x27 cm</a>
+            <a class="secondary-button box-download-link" href="assets/caixa-lateral-comprimento-40x8cm.svg" download="caixa-lateral-comprimento-40x8cm.svg">Lateral 40x8 cm</a>
+            <a class="secondary-button box-download-link" href="assets/caixa-lateral-largura-27x8cm.svg" download="caixa-lateral-largura-27x8cm.svg">Lateral 27x8 cm</a>
+          </div>
+        </section>
+        <section class="box-download-section">
+          <h3>Caixa montada</h3>
+          <a class="secondary-button box-download-link box-download-wide" href="assets/caixa-ciclo-celular-montada-56x43cm.svg" download="caixa-ciclo-celular-montada-56x43cm.svg">Baixar caixa montada</a>
+        </section>
+        <div class="modal-actions">
+          <button class="ghost-button" id="boxDownloadClose" type="button">Fechar</button>
         </div>
       </div>
     </div>
