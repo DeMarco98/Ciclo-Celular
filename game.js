@@ -3030,7 +3030,7 @@ boxDownloadModal.addEventListener("click", (event) => {
 });
 boxDownloadModal.querySelectorAll("[download]").forEach((link) => {
   link.addEventListener("click", () => {
-    setMessage("Imagem da caixa baixada.", "O arquivo SVG escolhido foi enviado para download.");
+    setMessage("Imagem da caixa baixada.", "O arquivo JPEG escolhido foi enviado para download.");
   });
 });
 adminCommandClose.addEventListener("click", closeAdminCommand);
@@ -3235,8 +3235,7 @@ async function inlineImages(clone) {
   );
 }
 
-function downloadSvgFile(svg, fileName) {
-  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+function downloadBlobFile(blob, fileName) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -3245,6 +3244,38 @@ function downloadSvgFile(svg, fileName) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function loadImageFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image));
+    image.addEventListener("error", reject);
+    image.src = url;
+  });
+}
+
+async function downloadSvgAsJpeg(svg, fileName, width, height) {
+  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  try {
+    const image = await loadImageFromUrl(svgUrl);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+    const jpegBlob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", 0.95);
+    });
+    if (jpegBlob) {
+      downloadBlobFile(jpegBlob, fileName);
+    }
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
 }
 
 async function downloadBoardImage() {
@@ -3287,8 +3318,8 @@ async function downloadBoardImage() {
   </foreignObject>
 </svg>`;
 
-  downloadSvgFile(svg, "missao-divisao-celular-tabuleiro-50x50cm.svg");
-  setMessage("Imagem do tabuleiro baixada.", "Arquivo SVG em 50x50 cm com margem de 1 cm.");
+  await downloadSvgAsJpeg(svg, "missao-divisao-celular-tabuleiro-50x50cm.jpg", 5000, 5000);
+  setMessage("Imagem do tabuleiro baixada.", "Arquivo JPEG em 50x50 cm com margem de 1 cm.");
 }
 
 function openBoxDownloadModal() {
@@ -3360,8 +3391,8 @@ async function downloadRulesImage() {
   </foreignObject>
 </svg>`;
 
-  downloadSvgFile(svg, "missao-divisao-celular-regras.svg");
-  setMessage("Imagem das regras baixada.", "Arquivo SVG com o layout das regras.");
+  await downloadSvgAsJpeg(svg, "missao-divisao-celular-regras.jpg", 1200, contentHeight);
+  setMessage("Imagem das regras baixada.", "Arquivo JPEG com o layout das regras.");
 }
 
 function renderRulesModal() {
@@ -3369,7 +3400,7 @@ function renderRulesModal() {
   panel.innerHTML = `
     <div class="rules-header">
       <h2 id="rulesTitle">Regras do jogo</h2>
-      <button class="print-icon-button rules-print-button admin-only" id="rulesPrintButton" type="button" aria-label="Baixar imagem das regras" title="Baixar regras em SVG">
+      <button class="print-icon-button rules-print-button admin-only" id="rulesPrintButton" type="button" aria-label="Baixar imagem das regras em JPEG" title="Baixar regras em JPEG">
         <span aria-hidden="true">⇩</span>
       </button>
     </div>
