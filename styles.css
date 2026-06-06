@@ -111,6 +111,7 @@ body.admin-mode .admin-only {
   background: rgba(255, 253, 250, 0.92);
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(30, 42, 54, 0.08);
+  text-decoration: none;
 }
 
 .print-icon-button:hover {

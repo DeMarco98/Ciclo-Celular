@@ -2962,7 +2962,9 @@ dice.addEventListener("click", rollDice);
 resetButton.addEventListener("click", resetGame);
 rulesButton.addEventListener("click", openRulesModal);
 fullscreenButton.addEventListener("click", toggleFullscreen);
-boardPrintButton.addEventListener("click", downloadBoardImage);
+boardPrintButton.addEventListener("click", () => {
+  setMessage("Imagem do tabuleiro baixada.", "O arquivo JPEG do tabuleiro foi enviado para download.");
+});
 setupPlayerGrid.addEventListener("click", (event) => {
   const button = event.target.closest("[data-setup-player]");
   if (!button) return;
@@ -3400,9 +3402,9 @@ function renderRulesModal() {
   panel.innerHTML = `
     <div class="rules-header">
       <h2 id="rulesTitle">Regras do jogo</h2>
-      <button class="print-icon-button rules-print-button admin-only" id="rulesPrintButton" type="button" aria-label="Baixar imagem das regras em JPEG" title="Baixar regras em JPEG">
+      <a class="print-icon-button rules-print-button admin-only" id="rulesPrintButton" href="assets/missao-divisao-celular-regras.jpg" download="missao-divisao-celular-regras.jpg" aria-label="Baixar imagem das regras em JPEG" title="Baixar regras em JPEG">
         <span aria-hidden="true">⇩</span>
-      </button>
+      </a>
     </div>
 
     <section class="rules-section">
@@ -3500,7 +3502,9 @@ function renderRulesModal() {
 
   panel.querySelector("#rulesClose").addEventListener("click", closeRulesModal);
   panel.querySelector("#eventLibraryButton").addEventListener("click", openEventLibraryModal);
-  panel.querySelector("#rulesPrintButton").addEventListener("click", downloadRulesImage);
+  panel.querySelector("#rulesPrintButton").addEventListener("click", () => {
+    setMessage("Imagem das regras baixada.", "O arquivo JPEG das regras foi enviado para download.");
+  });
 }
 
 function openEventLibraryModal() {
